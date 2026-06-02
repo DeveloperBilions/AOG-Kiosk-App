@@ -21,12 +21,16 @@
   html,body{height:100%;background:#000;overflow:hidden;font-family:'Chakra Petch',sans-serif}
 
   /* Scale the fixed 16:9 stage to fit any viewport */
-  .wrap{position:fixed;inset:0;display:grid;place-items:center;background:
+  .wrap{position:fixed;inset:0;background:
      radial-gradient(120% 80% at 80% -10%, rgba(165,255,8,.10), transparent 60%),
      #000;}
   .stage{
-    position:relative;width:1280px;height:720px;
+    /* Anchored to the viewport centre; JS sets transform to
+       translate(-50%,-50%) scale(k) so it stays centred at any scale. */
+    position:absolute;top:50%;left:50%;
+    width:1280px;height:720px;
     background:var(--ink);
+    transform:translate(-50%,-50%);
     transform-origin:center center;
     box-shadow:0 0 0 14px #060704, 0 0 0 16px #1a1d12, 0 40px 120px rgba(0,0,0,.8);
     border-radius:18px;overflow:hidden;
@@ -157,6 +161,7 @@
     .wrap{position:static;display:block;min-height:100%;width:100%;overflow-x:hidden}
 
     .stage{
+      position:static !important;top:auto !important;left:auto !important;
       width:100%;max-width:100%;height:auto;min-height:100vh;
       transform:none !important;            /* override inline JS scale */
       border-radius:0;box-shadow:none;overflow-x:hidden;
@@ -312,10 +317,17 @@
   function fit(){
     const s=document.getElementById('stage');
     const portrait = innerHeight > innerWidth;
-    if(portrait){ s.style.transform='none'; return; }
+    if(portrait){
+      // Portrait: CSS @media reflows the page; drop the centring transform.
+      s.style.top='';s.style.left='';s.style.transform='';
+      return;
+    }
     const m=40;
     const k=Math.min((innerWidth-m)/1280,(innerHeight-m)/720);
-    s.style.transform='scale('+k+')';
+    // Centre the scaled stage explicitly so it never drifts to a corner,
+    // regardless of how small k gets on short (phone-landscape) viewports.
+    s.style.top='50%';s.style.left='50%';
+    s.style.transform='translate(-50%,-50%) scale('+k+')';
   }
   addEventListener('resize',fit);
   addEventListener('orientationchange',fit);
