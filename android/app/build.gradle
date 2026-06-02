@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.thebilions.aogkiosk'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.thebilions.aogkiosk"
+        minSdk 21          // Android 5.0 — covers virtually all Android TV boxes
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        // ---- Kiosk configuration (change here, rebuild) ----------------------
+        // The hosted page the kiosk loads. Update content by editing the page in
+        // web/ and pushing — every TV auto-refreshes; no reinstall needed.
+        buildConfigField "String", "KIOSK_URL", "\"https://developerbilions.github.io/AOG-Kiosk-App/\""
+        // How often (ms) the TV silently reloads the hosted page. 15 minutes.
+        buildConfigField "long", "REFRESH_INTERVAL_MS", "${15L * 60L * 1000L}L"
+        // ---------------------------------------------------------------------
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            // Unsigned-by-default release; signed below if a keystore is present.
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.webkit:webkit:1.8.0'
+}

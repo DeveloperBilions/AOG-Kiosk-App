@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -214,18 +213,13 @@
       <div class="qrbox">
         <div class="corner c1"></div><div class="corner c2"></div>
         <div class="corner c3"></div><div class="corner c4"></div>
-        <div id="qr"></div>
+        <img id="qr" src="QR.png" alt="Scan to join" width="204" height="204" />
         <div class="scanline"></div>
       </div>
 
       <div class="token">
-        <div class="ring">
-          <svg width="16" height="16" viewBox="0 0 16 16">
-            <circle class="bg" cx="8" cy="8" r="6"></circle>
-            <circle class="fg" cx="8" cy="8" r="6"></circle>
-          </svg>
-        </div>
-        secure code · refreshes in <b id="cd">45</b>s
+        <div class="dot" style="width:8px;height:8px"></div>
+        secure code · scan to sign up
       </div>
 
       <div class="steps">
@@ -283,23 +277,7 @@
     cw.appendChild(c);
   }
 
-  /* ---- rotating signed QR (the fraud-resistance bit, visualised) ---- */
-  const STORE='1042';
-  const qrEl=document.getElementById('qr');
-  let qr=new QRCode(qrEl,{width:204,height:204,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
-  function sign(){
-    // demo only — real impl: HMAC(storeId + ts) signed server-side
-    const ts=Date.now();
-    const tok=btoa(STORE+'.'+ts).slice(0,10).replace(/=/g,'');
-    return 'https://aogcoin.club/r/'+STORE+'?t='+tok;
-  }
-  function refresh(){
-    qrEl.classList.add('flip');
-    setTimeout(()=>{qr.clear();qr.makeCode(sign());qrEl.classList.remove('flip');},300);
-  }
-  refresh();
-  let t=45;
-  setInterval(()=>{t--;if(t<=0){t=45;refresh();}document.getElementById('cd').textContent=t;},1000);
+  /* ---- QR is now a fixed image (QR.png) — no rotation needed ---- */
 </script>
 </body>
 </html>

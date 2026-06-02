@@ -2,3 +2,17 @@
 node_modules/
 *.log
 .env
+
+# Android / Gradle build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+*.iml
+.kotlin/
+
+# Keystores (never commit signing keys)
+*.jks
+*.keystore

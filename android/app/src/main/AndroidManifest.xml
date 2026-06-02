@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Android TV boxes have no touchscreen; declare it optional so the app
+         installs and shows up on the TV home screen. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+    <!-- Leanback = the Android TV UI. Optional so the same APK also runs on
+         tablets/phones if you ever sideload it there. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Kiosk"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".KioskActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|navigation"
+            android:screenOrientation="landscape"
+            android:theme="@style/Theme.Kiosk">
+
+            <!-- LEANBACK_LAUNCHER makes it appear on the Android TV home row. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <!-- Also a normal launcher so it's reachable on non-TV devices. -->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
