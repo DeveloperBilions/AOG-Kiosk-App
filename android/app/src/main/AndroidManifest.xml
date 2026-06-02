@@ -27,7 +27,6 @@
             android:name=".KioskActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode|navigation"
-            android:screenOrientation="landscape"
             android:theme="@style/Theme.Kiosk">
 
             <!-- LEANBACK_LAUNCHER makes it appear on the Android TV home row. -->
