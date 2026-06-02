@@ -2,6 +2,13 @@ plugins {
     id 'com.android.application'
 }
 
+// Load release signing creds from android/keystore.properties (gitignored).
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
 android {
     namespace 'com.thebilions.aogkiosk'
     compileSdk 34
@@ -26,10 +33,31 @@ android {
         buildConfig true
     }
 
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+                // Explicitly enable APK Signature Schemes v1, v2 and v3 so the
+                // package installs on every Android TV (some reject v1-only or
+                // v2-less APKs). v1 also keeps pre-API-24 installs working.
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Unsigned-by-default release; signed below if a keystore is present.
             minifyEnabled false
+            // Sign with the release key when keystore.properties is present;
+            // otherwise the release build stays unsigned (CI without secrets).
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

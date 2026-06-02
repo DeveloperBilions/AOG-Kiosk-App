@@ -63,26 +63,76 @@ cd android
 # Point Gradle at your SDK (once):
 echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 
-# Debug build (installable immediately):
+# Debug build (quick local testing):
 ./gradlew :app:assembleDebug
 # -> app/build/outputs/apk/debug/app-debug.apk
+
+# Signed RELEASE build (what you sideload onto store TVs):
+./gradlew :app:assembleRelease
+# -> app/build/outputs/apk/release/app-release.apk
 ```
 
-For store distribution, produce a signed **release** APK (create a keystore,
-add a `signingConfig`, then `./gradlew :app:assembleRelease`).
+### Release signing
+
+The release build is signed with a keystore. Signing is driven by a gitignored
+`android/keystore.properties` (and the keystore itself):
+
+```
+storeFile=keystore/aog-kiosk-release.jks
+storePassword=...
+keyAlias=aogkiosk
+keyPassword=...
+```
+
+The signing config explicitly enables **v1 + v2 + v3** signature schemes — some
+Android TVs reject v1-only or v2-less APKs, which shows up as a vague
+"App not installed". A pre-built signed APK is attached to each
+[GitHub Release](https://github.com/DeveloperBilions/AOG-Kiosk-App/releases)
+(and built locally into `dist/`, which is gitignored).
+
+> **Back up the keystore + passwords.** If you lose them you can no longer ship
+> updates that overwrite an already-installed copy (the signatures won't match).
 
 ## Sideloading onto an Android TV
 
-1. On the TV: **Settings → Device Preferences → About →** click *Build* 7×
-   to enable Developer options, then enable **USB debugging** /
-   **Apps from unknown sources**.
-2. Connect over network ADB (find the TV's IP in network settings):
-   ```bash
-   adb connect <TV_IP>:5555
-   adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-   ```
-   …or copy the APK to a USB stick and install it with a file manager on the TV.
-3. Launch **AOG Kiosk** from the Android TV home screen (it has a TV banner).
+> Download the current signed APK from the
+> [latest GitHub Release](https://github.com/DeveloperBilions/AOG-Kiosk-App/releases/latest),
+> or build it yourself (`./gradlew :app:assembleRelease`).
+
+### Why "App not installed" happens (Android 9/10+ via USB)
+
+On newer Android TV / Google TV, installing from a USB stick fails unless the
+**specific file-manager app you open the APK with** is allowed to install
+unknown apps. The permission is **per-app**, not global. Do this on the TV:
+
+1. **Settings → Apps → Security & restrictions → Install unknown apps**
+   (on some TVs: *Settings → System → … → Install unknown apps*).
+2. Find the app you'll open the APK with (e.g. **X-plore**, **File Commander**,
+   **Downloader**, **Files**) and toggle it **ON**.
+3. Now open the APK from that file manager → **Install**.
+
+If it still fails: uninstall any earlier copy first (a different signature on the
+old build blocks the update — see below), and make sure you're using the
+`-release.apk`, not a debug build.
+
+### USB install (recommended for store TVs)
+
+1. Copy the signed `app-release.apk` (from the Release or your local build) to a
+   USB stick; plug it into the TV.
+2. Open it with a file manager that's allowed to install unknown apps (above).
+3. Install, then launch **AOG Kiosk** from the Android TV home screen.
+
+### ADB install (if the TV is on your network)
+
+```bash
+adb connect <TV_IP>:5555          # TV IP is in network settings
+# If an older/differently-signed copy is installed, remove it first:
+adb uninstall com.thebilions.aogkiosk   # (ignore "not installed")
+adb install -r dist/AOG-Kiosk-v1.0-release.apk
+```
+
+A signature-mismatch failure looks like `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
+— the uninstall step above clears it.
 
 ### Make it the always-on kiosk (optional hardening)
 

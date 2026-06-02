@@ -16,8 +16,13 @@ android/.idea/
 # Keystores (never commit signing keys)
 *.jks
 *.keystore
+android/keystore.properties
+android/keystore/
 
 # Stray screenshots / scratch images
 android/*.jpeg
 android/*.jpg
 *.screenshot.png
+
+# Built APKs (distributed via GitHub Releases, not tracked in git)
+dist/*.apk
