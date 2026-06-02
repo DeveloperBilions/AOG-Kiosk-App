@@ -16,3 +16,8 @@ android/.idea/
 # Keystores (never commit signing keys)
 *.jks
 *.keystore
+
+# Stray screenshots / scratch images
+android/*.jpeg
+android/*.jpg
+*.screenshot.png
