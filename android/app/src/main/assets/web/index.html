@@ -2,358 +2,396 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AOG — Store Mode Kiosk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>AOG — Sign In</title>
+<script src="config.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&display=swap');
 
   :root{
     --lime:#A5FF08;
-    --lime-dim:#7db300;
+    --lime-dim:#94e600;
     --ink:#000000;
-    --panel:#0a0b08;
-    --panel2:#111309;
-    --line:rgba(165,255,8,.16);
-    --txt:#e9ffce;
-    --mut:#6f7a55;
+    --panel:#111111;
+    --line:#2a2a2a;
+    --txt:#ffffff;
+    --mut:#9aa07f;
+    --gray:#9ca3af;
+    --red:#ef4444;
   }
   *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;background:#000;overflow:hidden;font-family:'Chakra Petch',sans-serif}
+  html,body{height:100%;background:#000;font-family:'Chakra Petch',sans-serif;color:var(--txt);
+    -webkit-text-size-adjust:100%}
+  body{overflow-x:hidden}
+  a{color:inherit}
 
-  /* Fluid 16:9-derived layout.
-     `--u` is one design unit = 1px of the original 720px-tall mock, expressed
-     relative to the real viewport height. Every formerly-fixed pixel value is
-     written as `calc(N * var(--u))`, so the whole UI scales with screen HEIGHT
-     and never crops vertically. The promo column is `1fr`, so any EXTRA width
-     (phones wider than 16:9) is absorbed there with no bars and no distortion. */
-  :root{ --u: calc(100vh / 720); }
-
-  .wrap{position:fixed;inset:0;background:
+  /* App fills the viewport; column layout with sticky header + centered form. */
+  .app{min-height:100vh;display:flex;flex-direction:column;background:
      radial-gradient(120% 80% at 80% -10%, rgba(165,255,8,.10), transparent 60%),
      #000;}
-  .stage{
-    position:absolute;inset:0;            /* fill the whole screen — no letterbox */
-    width:100%;height:100%;
-    background:var(--ink);
-    overflow:hidden;
-    display:grid;
-    grid-template-columns:1fr calc(430 * var(--u));
-    grid-template-rows:calc(64 * var(--u)) 1fr calc(40 * var(--u));
-  }
 
   /* ---------- HEADER ---------- */
-  .bar{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;
-    padding:0 calc(26 * var(--u));border-bottom:1px solid var(--line);
-    background:linear-gradient(180deg,rgba(165,255,8,.06),transparent);}
-  .brand{display:flex;align-items:center;gap:calc(12 * var(--u))}
-  .logo{font-family:'Anton';font-size:calc(30 * var(--u));letter-spacing:1px;color:var(--lime);
-    text-shadow:0 0 22px rgba(165,255,8,.5);line-height:1}
-  .logo span{color:#fff}
-  .tag{font-size:calc(11 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:3px}
-  .live{display:flex;align-items:center;gap:9px;font-size:calc(12 * var(--u));letter-spacing:2px;color:var(--mut);text-transform:uppercase}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime);animation:pulse 1.8s infinite}
+  .hdr{position:sticky;top:0;z-index:50;height:72px;flex-shrink:0;
+    border-bottom:1px solid var(--line);
+    background:rgba(0,0,0,.85);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);}
+  .hdr-in{max-width:1200px;margin:0 auto;height:100%;padding:0 24px;
+    display:flex;align-items:center;justify-content:space-between}
+  .hdr img{height:32px;width:auto;display:block}
+  .live{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:2px;
+    color:var(--mut);text-transform:uppercase}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--lime);
+    box-shadow:0 0 12px var(--lime);animation:pulse 1.8s infinite}
   @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
 
-  /* ---------- PROMO LOOP ---------- */
-  .promo{position:relative;overflow:hidden;background:
-     radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
-     linear-gradient(160deg,#0c0e07,#000);}
-  .scene{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
-    padding:calc(54 * var(--u)) calc(60 * var(--u));opacity:0;transform:scale(1.04);transition:opacity .9s ease, transform 6s ease;}
-  .scene.on{opacity:1;transform:scale(1)}
-  .kicker{font-size:calc(13 * var(--u));letter-spacing:5px;text-transform:uppercase;color:var(--lime);margin-bottom:calc(14 * var(--u))}
-  .head{font-family:'Anton';font-size:calc(74 * var(--u));line-height:.94;color:#fff;letter-spacing:.5px;max-width:calc(620 * var(--u))}
-  .head em{font-style:normal;color:var(--lime);text-shadow:0 0 28px rgba(165,255,8,.45)}
-  .sub{margin-top:calc(20 * var(--u));font-size:calc(18 * var(--u));color:var(--txt);max-width:calc(520 * var(--u));line-height:1.5;opacity:.85}
+  /* ---------- BODY ---------- */
+  .body{flex:1;display:flex;align-items:center;justify-content:center;
+    padding:40px 24px;background:transparent}
+  .card{width:100%;max-width:384px}
 
-  /* floating game tiles */
-  .tiles{position:absolute;right:calc(-30 * var(--u));bottom:calc(-20 * var(--u));width:calc(340 * var(--u));height:calc(340 * var(--u))}
-  .tile{position:absolute;width:calc(120 * var(--u));height:calc(120 * var(--u));border-radius:18px;border:1px solid var(--line);
-    background:linear-gradient(145deg,#15180d,#0a0b07);display:grid;place-items:center;
-    box-shadow:0 18px 40px rgba(0,0,0,.6);animation:float 5s ease-in-out infinite}
-  .tile .ic{font-size:calc(46 * var(--u));filter:drop-shadow(0 0 16px rgba(165,255,8,.4))}
-  .tile:nth-child(1){right:calc(120 * var(--u));bottom:calc(160 * var(--u));animation-delay:0s;transform:rotate(-6deg)}
-  .tile:nth-child(2){right:calc(10 * var(--u));bottom:calc(90 * var(--u));animation-delay:.8s;transform:rotate(5deg);border-color:rgba(165,255,8,.35)}
-  .tile:nth-child(3){right:calc(170 * var(--u));bottom:calc(20 * var(--u));animation-delay:1.4s;transform:rotate(3deg)}
-  @keyframes float{0%,100%{transform:translateY(0) rotate(var(--r,0))}50%{transform:translateY(-14px)}}
+  /* banner carousel */
+  .banner{position:relative}
+  .banner .frame{overflow:hidden;border-radius:12px}
+  .track{display:flex;transition:transform .5s ease-out}
+  .track img{width:100%;flex-shrink:0;user-select:none;display:block}
+  .nav{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;border-radius:50%;border:0;
+    background:rgba(0,0,0,.5);color:#fff;cursor:pointer;transition:background .2s,opacity .2s}
+  .nav:hover{background:rgba(0,0,0,.7)}
+  .nav.prev{left:-16px}.nav.next{right:-16px}
+  .nav svg{width:20px;height:20px}
+  .dots{display:flex;justify-content:center;gap:6px;margin:12px 0 24px}
+  .dots button{height:6px;border:0;border-radius:999px;background:rgba(255,255,255,.5);
+    cursor:pointer;transition:all .3s;width:6px;padding:0}
+  .dots button.on{width:20px;background:var(--lime)}
 
-  .coins{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-  .coin{position:absolute;width:14px;height:14px;border-radius:50%;
-    background:radial-gradient(circle at 35% 30%, #d9ff7a, var(--lime) 60%, var(--lime-dim));
-    box-shadow:0 0 10px rgba(165,255,8,.6);opacity:.0;animation:rise 7s linear infinite}
-  @keyframes rise{0%{transform:translateY(40px) scale(.6);opacity:0}
-    12%{opacity:.9}88%{opacity:.7}100%{transform:translateY(-720px) scale(1);opacity:0}}
+  /* heading */
+  .welcome{margin-bottom:28px}
+  .welcome h2{font-size:24px;font-weight:700;margin-bottom:6px}
+  .welcome p{font-size:14px;line-height:1.6;color:var(--gray)}
 
-  /* progress ticks for the loop */
-  .ticks{position:absolute;left:calc(54 * var(--u));bottom:calc(34 * var(--u));display:flex;gap:8px}
-  .tk{width:calc(46 * var(--u));height:4px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
-  .tk i{display:block;height:100%;width:0;background:var(--lime);box-shadow:0 0 8px var(--lime)}
-  .tk.active i{animation:fill 6s linear forwards}
-  @keyframes fill{to{width:100%}}
+  /* form */
+  .field{margin-bottom:16px}
+  .field label{display:block;font-weight:500;font-size:14px;margin-bottom:6px}
+  .field label .req{color:var(--red);font-size:12px}
+  .input-wrap{position:relative}
+  .field input{width:100%;padding:12px;height:auto;border-radius:6px;background:var(--panel);
+    border:1px solid #374151;color:#fff;font-size:14px;font-family:inherit;outline:none;
+    transition:border-color .2s,box-shadow .2s}
+  .field input::placeholder{color:#6b7280}
+  .field input:focus{border-color:var(--lime);box-shadow:0 0 0 3px rgba(165,255,8,.2)}
+  .field input.err{border-color:var(--red)}
+  .field input.has-eye{padding-right:42px}
+  .eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:0;border:0;
+    color:var(--gray);cursor:pointer;display:flex;padding:0;transition:color .2s}
+  .eye:hover{color:#fff}
+  .eye svg{width:18px;height:18px}
+  .msg{color:var(--red);font-size:12px;margin-top:4px;min-height:0}
 
-  /* ---------- SIGNUP PANEL ---------- */
-  .join{position:relative;background:
-     linear-gradient(180deg,#0b0d07,#050603);
-     border-left:1px solid var(--line);padding:calc(30 * var(--u)) calc(30 * var(--u)) calc(22 * var(--u));
-     display:flex;flex-direction:column;align-items:center}
-  .join:before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
-    background:linear-gradient(90deg,transparent,var(--lime),transparent)}
-  .jtitle{font-family:'Anton';font-size:calc(34 * var(--u));color:#fff;letter-spacing:.5px;text-align:center;line-height:1}
-  .jtitle em{font-style:normal;color:var(--lime)}
-  .jsmall{font-size:calc(12 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:calc(8 * var(--u));text-align:center}
+  .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;
+    color:var(--gray);margin-bottom:20px}
+  .remember{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .remember input{position:absolute;opacity:0;width:0;height:0}
+  .box{width:16px;height:16px;border-radius:4px;border:1px solid #4b5563;display:flex;
+    align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+  .remember input:checked + .box{background:var(--lime);border-color:var(--lime)}
+  .box svg{width:12px;height:12px;color:#000;opacity:0;transition:opacity .15s}
+  .remember input:checked + .box svg{opacity:1}
+  .link{color:var(--lime);background:0;border:0;font:inherit;font-size:12px;cursor:pointer;
+    padding:0;transition:opacity .2s}
+  .link:hover{opacity:.8}
 
-  .qrbox{position:relative;margin:calc(20 * var(--u)) 0 calc(6 * var(--u));width:calc(236 * var(--u));height:calc(236 * var(--u));border-radius:20px;
-    background:#fff;display:grid;place-items:center;
-    box-shadow:0 0 0 2px var(--lime), 0 0 40px rgba(165,255,8,.35);overflow:hidden}
-  #qr{width:86%;height:86%;object-fit:contain}
-  #qr{transition:opacity .35s}
-  #qr.flip{opacity:.15}
-  .scanline{position:absolute;left:8px;right:8px;height:34px;border-radius:8px;
-    background:linear-gradient(180deg,rgba(165,255,8,0),rgba(165,255,8,.35),rgba(165,255,8,0));
-    animation:scan 2.6s ease-in-out infinite;pointer-events:none}
-  @keyframes scan{0%,100%{top:8px}50%{top:194px}}
-  .corner{position:absolute;width:22px;height:22px;border:3px solid var(--lime)}
-  .c1{top:8px;left:8px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
-  .c2{top:8px;right:8px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
-  .c3{bottom:8px;left:8px;border-right:0;border-top:0;border-radius:0 0 0 6px}
-  .c4{bottom:8px;right:8px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+  .btn{width:100%;background:var(--lime);color:#000;font-weight:600;padding:12px;height:auto;
+    border:0;border-radius:6px;font-size:16px;font-family:inherit;cursor:pointer;
+    transition:background .2s,opacity .2s}
+  .btn:hover{background:var(--lime-dim)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
 
-  .token{display:flex;align-items:center;gap:8px;font-family:'Space Mono';font-size:calc(11 * var(--u));
-    color:var(--mut);letter-spacing:1px;margin-top:calc(2 * var(--u))}
-  .token b{color:var(--lime-dim)}
-  .ring{position:relative;width:16px;height:16px}
-  .ring svg{transform:rotate(-90deg)}
-  .ring circle{fill:none;stroke-width:3}
-  .ring .bg{stroke:rgba(165,255,8,.18)}
-  .ring .fg{stroke:var(--lime);stroke-linecap:round;stroke-dasharray:38;
-    animation:ring 45s linear infinite}
-  @keyframes ring{from{stroke-dashoffset:0}to{stroke-dashoffset:38}}
+  .legal{font-size:11px;color:#4b5563;text-align:center;margin-top:8px}
+  .legal a{text-decoration:underline}
+  .legal a:hover{color:var(--gray)}
 
-  .steps{display:flex;gap:calc(8 * var(--u));margin-top:calc(16 * var(--u));width:100%}
-  .step{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:calc(11 * var(--u)) calc(8 * var(--u));text-align:center}
-  .step .n{font-family:'Anton';font-size:calc(18 * var(--u));color:var(--lime);line-height:1}
-  .step .t{font-size:calc(11 * var(--u));color:var(--txt);margin-top:5px;letter-spacing:.4px;line-height:1.25;text-transform:uppercase;opacity:.85}
+  .divider{position:relative;margin:24px 0}
+  .divider .ln{border-top:1px solid #374151}
+  .divider span{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#000;padding:0 12px;font-size:12px;letter-spacing:1px;color:#6b7280}
 
-  .store{margin-top:calc(16 * var(--u));width:100%;border-radius:12px;padding:calc(12 * var(--u)) calc(14 * var(--u));text-align:center;
-    background:linear-gradient(180deg,rgba(165,255,8,.10),rgba(165,255,8,.03));
-    border:1px solid var(--line)}
-  .store .lbl{font-size:calc(10 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase}
-  .store .nm{font-family:'Anton';font-size:calc(20 * var(--u));color:#fff;margin-top:3px;letter-spacing:.5px}
-  .store .nm span{color:var(--lime)}
+  .oauth{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .oauth button{display:flex;align-items:center;justify-content:center;gap:8px;
+    background:var(--panel);border:1px solid #374151;color:#fff;border-radius:6px;
+    padding:11px;font-size:13px;font-family:inherit;cursor:pointer;
+    transition:border-color .2s,background .2s}
+  .oauth button:hover{border-color:#4b5563;background:#1a1a1a}
+  .oauth button svg{width:18px;height:18px}
 
-  /* ---------- FOOTER COMPLIANCE ---------- */
-  .foot{grid-column:1/3;display:flex;align-items:center;justify-content:center;gap:calc(18 * var(--u));
-    border-top:1px solid var(--line);background:#050603;
-    font-size:calc(10 * var(--u));letter-spacing:1.5px;color:var(--mut);text-transform:uppercase}
-  .foot b{color:var(--lime-dim)}
-  .sep{width:4px;height:4px;border-radius:50%;background:var(--mut);opacity:.5}
+  .signup{text-align:center;font-size:14px;color:#6b7280;margin-top:24px}
+  .signup .link{font-size:14px;font-weight:600}
 
-  .scanhint{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);
-    font-size:11px;letter-spacing:2px;color:var(--lime);text-transform:uppercase;
-    animation:blink 2s ease-in-out infinite}
-  @keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
-
-  /* ============================================================
-     PORTRAIT / PHONE LAYOUT
-     The kiosk is a fixed 1280x720 landscape stage on TV. On a
-     portrait phone we drop the fixed size + scale transform and
-     reflow everything into a single scrollable column, with the
-     sign-up panel (QR) promoted to the top.
-     ============================================================ */
-  @media (orientation:portrait){
-    /* In portrait we reflow to a column; pin the design unit to a fixed px so
-       the base calc(N*var(--u)) sizes stay sensible (100vh-based --u would be
-       huge on a tall phone). Tuned to the phone width instead. */
-    :root{ --u: calc(100vw / 430); }
-    html,body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;width:100%}
-    .wrap{position:static;display:block;min-height:100%;width:100%;overflow-x:hidden}
-
-    .stage{
-      position:static !important;top:auto !important;left:auto !important;
-      width:100%;max-width:100%;height:auto;min-height:100vh;
-      transform:none !important;            /* override inline JS scale */
-      border-radius:0;box-shadow:none;overflow-x:hidden;
-      display:flex;flex-direction:column;
-    }
-    /* promo decorations can extend past the edge — clip them, don't scroll */
-    .promo{overflow:hidden}
-
-    /* header */
-    .bar{order:1;padding:16px 20px}
-    .logo{font-size:26px}
-
-    /* sign-up panel first — the call to action on a phone */
-    .join{order:2;border-left:0;border-bottom:1px solid var(--line);
-      padding:26px 22px 30px;overflow:hidden}
-    .qrbox{width:60vw;max-width:280px;height:60vw;max-height:280px;margin:18px 0 8px}
-    #qr{width:86%;height:86%;object-fit:contain}
-    .scanline{animation:none;display:none}     /* fixed box height differs; hide scanner */
-    .jtitle{font-size:30px}
-    .steps{width:100%;max-width:440px;gap:6px}
-    .step{padding:10px 4px}
-    .step .t{font-size:10px;letter-spacing:.2px}
-    .store{width:100%;max-width:440px}
-
-    /* promo loop below — give it a real height so scenes are visible */
-    .promo{order:3;position:relative;min-height:62vh;width:100%;max-width:100vw;overflow:hidden}
-    .scene{padding:34px 26px;max-width:100%}
-    .kicker{font-size:12px;letter-spacing:4px;margin-bottom:10px}
-    .head{font-size:clamp(40px,12vw,68px);max-width:none}
-    .sub{font-size:16px;max-width:none}
-    .tiles{width:200px;height:200px;right:-10px;bottom:-10px}
-    .tile{width:84px;height:84px}
-    .tile .ic{font-size:34px}
-    .tile:nth-child(1){right:78px;bottom:96px}
-    .tile:nth-child(2){right:6px;bottom:52px}
-    .tile:nth-child(3){right:104px;bottom:8px}
-    .ticks{left:26px;bottom:22px}
-
-    /* footer */
-    .foot{order:4;flex-wrap:wrap;gap:8px 14px;padding:14px 18px;text-align:center}
+  /* ---------- LANDSCAPE / TV: two-column split ---------- */
+  @media (orientation:landscape) and (min-width:900px){
+    .body{padding:0;align-items:stretch}
+    .split{display:grid;grid-template-columns:1fr 480px;width:100%;min-height:0}
+    /* promo side */
+    .promo{position:relative;overflow:hidden;display:flex;flex-direction:column;
+      justify-content:center;padding:6vh 5vw;background:
+        radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
+        linear-gradient(160deg,#0c0e07,#000);border-right:1px solid var(--line)}
+    .promo .kicker{font-size:13px;letter-spacing:5px;text-transform:uppercase;
+      color:var(--lime);margin-bottom:16px}
+    .promo .big{font-family:'Anton';font-size:clamp(40px,5.4vw,76px);line-height:.96;
+      color:#fff;max-width:640px}
+    .promo .big em{font-style:normal;color:var(--lime);text-shadow:0 0 28px rgba(165,255,8,.45)}
+    .promo .lead{margin-top:22px;font-size:clamp(15px,1.4vw,19px);color:#e9ffce;
+      max-width:520px;line-height:1.5;opacity:.85}
+    .promo .badges{display:flex;gap:14px;margin-top:36px;flex-wrap:wrap}
+    .promo .badge{display:flex;align-items:center;gap:9px;font-size:13px;letter-spacing:1px;
+      color:var(--mut);text-transform:uppercase}
+    .promo .badge b{color:var(--lime-dim)}
+    /* form side scrolls if short */
+    .form-side{display:flex;align-items:center;justify-content:center;
+      padding:32px;overflow-y:auto;background:#000}
+    .form-side .card{max-width:360px}
+    /* hide the small carousel on the form side in split mode — promo carries the art */
+    .form-side .banner,.form-side .dots{display:none}
   }
-
-  /* Very short / small phones: tighten the promo so it doesn't dominate */
-  @media (orientation:portrait) and (max-height:680px){
-    .promo{min-height:48vh}
-    .head{font-size:clamp(34px,11vw,52px)}
-  }
+  /* When NOT in split mode the promo column is irrelevant */
+  @media not all and (min-width:900px){ .promo{display:none} }
+  @media (orientation:portrait){ .promo{display:none} }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="stage" id="stage">
+<div class="app">
 
-    <!-- HEADER -->
-    <div class="bar">
-      <div class="brand">
-        <div>
-          <div class="logo">AOG<span>.</span></div>
-          <div class="tag">Sweepstakes · Play Free</div>
-        </div>
-      </div>
+  <!-- HEADER -->
+  <header class="hdr">
+    <div class="hdr-in">
+      <img src="login/logo.png" alt="AOG" />
       <div class="live"><span class="dot"></span> In-Store Live</div>
     </div>
+  </header>
 
-    <!-- PROMO LOOP -->
-    <div class="promo" id="promo">
-      <div class="coins" id="coins"></div>
+  <!-- BODY -->
+  <div class="body">
+    <div class="split">
 
-      <div class="scene on">
-        <div class="kicker">Free To Play</div>
-        <div class="head">PLAY THE<br><em>HOTTEST GAMES</em><br>ON US.</div>
-        <div class="sub">Get Gold Coins to play plus free Sweepstakes Coins the moment you join. No purchase necessary.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">🎰</div></div>
-          <div class="tile"><div class="ic">🐟</div></div>
-          <div class="tile"><div class="ic">⚡</div></div>
+      <!-- PROMO (landscape/TV only) -->
+      <div class="promo">
+        <div class="kicker">Sweepstakes · Play Free</div>
+        <div class="big">PLAY THE<br><em>HOTTEST GAMES</em><br>ON US.</div>
+        <div class="lead">Sign in to access your gaming dashboard. Get Gold Coins to play
+          plus free Sweepstakes Coins the moment you join. No purchase necessary.</div>
+        <div class="badges">
+          <div class="badge"><b>18+</b> only</div>
+          <div class="badge">No purchase necessary</div>
+          <div class="badge">Void where prohibited</div>
         </div>
       </div>
 
-      <div class="scene">
-        <div class="kicker">Daily Rewards</div>
-        <div class="head">LOG IN<br>EVERY DAY.<br><em>STACK COINS.</em></div>
-        <div class="sub">Daily login bonuses, drops and challenges — fresh rewards waiting each time you come back.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">🪙</div></div>
-          <div class="tile"><div class="ic">🎁</div></div>
-          <div class="tile"><div class="ic">🔥</div></div>
+      <!-- FORM SIDE -->
+      <div class="form-side">
+        <div class="card">
+
+          <!-- banner carousel -->
+          <div class="banner">
+            <div class="frame">
+              <div class="track" id="track">
+                <img src="login/Banner1.webp" alt="Banner 1" draggable="false" />
+                <img src="login/Banner2.webp" alt="Banner 2" draggable="false" />
+                <img src="login/Banner3.webp" alt="Banner 3" draggable="false" />
+              </div>
+            </div>
+            <button class="nav prev" id="prev" aria-label="Previous banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button class="nav next" id="next" aria-label="Next banner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+          <div class="dots" id="dots"></div>
+
+          <!-- heading -->
+          <div class="welcome">
+            <h2>Welcome back</h2>
+            <p>Sign in with your Member ID or Email to access your gaming dashboard.</p>
+          </div>
+
+          <!-- form -->
+          <div class="msg" id="formMsg" style="margin-bottom:12px"></div>
+          <form id="loginForm" novalidate>
+            <div class="field">
+              <label for="user">Member ID / Email <span class="req">*</span></label>
+              <input id="user" type="text" autocomplete="username"
+                placeholder="Enter your Member ID or Email" />
+              <div class="msg" id="userMsg"></div>
+            </div>
+
+            <div class="field">
+              <label for="pass">Password <span class="req">*</span></label>
+              <div class="input-wrap">
+                <input id="pass" type="password" autocomplete="current-password"
+                  class="has-eye" placeholder="Enter your password" />
+                <button type="button" class="eye" id="toggle" aria-label="Show password">
+                  <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="msg" id="passMsg"></div>
+            </div>
+
+            <div class="row">
+              <label class="remember">
+                <input type="checkbox" id="remember" />
+                <span class="box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                Remember me
+              </label>
+              <button type="button" class="link" id="forgot">Forgot password?</button>
+            </div>
+
+            <button type="submit" class="btn" id="submit">Sign In</button>
+
+          </form>
+
         </div>
       </div>
 
-      <div class="scene">
-        <div class="kicker">Redeem</div>
-        <div class="head">TURN COINS<br>INTO<br><em>REAL REWARDS.</em></div>
-        <div class="sub">Collect Sweepstakes Coins as you play and redeem them for cash prizes. Fast, secure payouts.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">💸</div></div>
-          <div class="tile"><div class="ic">🏆</div></div>
-          <div class="tile"><div class="ic">✨</div></div>
-        </div>
-      </div>
-
-      <div class="ticks">
-        <div class="tk active"><i></i></div>
-        <div class="tk"><i></i></div>
-        <div class="tk"><i></i></div>
-      </div>
-    </div>
-
-    <!-- SIGNUP PANEL -->
-    <div class="join">
-      <div class="jtitle">SCAN TO <em>JOIN</em></div>
-      <div class="jsmall">Sign up on your phone</div>
-
-      <div class="qrbox">
-        <div class="corner c1"></div><div class="corner c2"></div>
-        <div class="corner c3"></div><div class="corner c4"></div>
-        <img id="qr" src="QR.png" alt="Scan to join" width="204" height="204" />
-        <div class="scanline"></div>
-      </div>
-
-      <div class="token">
-        <div class="dot" style="width:8px;height:8px"></div>
-        secure code · scan to sign up
-      </div>
-
-      <div class="steps">
-        <div class="step"><div class="n">1</div><div class="t">Scan code</div></div>
-        <div class="step"><div class="n">2</div><div class="t">Sign up free</div></div>
-        <div class="step"><div class="n">3</div><div class="t">Start playing</div></div>
-      </div>
-
-      <div class="store">
-        <div class="lbl">You're joining via</div>
-        <div class="nm">QuickStop <span>#1042</span></div>
-      </div>
-    </div>
-
-    <!-- FOOTER -->
-    <div class="foot">
-      <span><b>18+</b> only</span><span class="sep"></span>
-      <span>No purchase necessary</span><span class="sep"></span>
-      <span>Sweepstakes void where prohibited</span><span class="sep"></span>
-      <span>Value Vends Tech LLC</span>
     </div>
   </div>
 </div>
 
 <script>
-  /* ---- fluid sizing ----
-     Landscape/TV: the stage fills the screen (CSS inset:0) and all sizes derive
-     from `--u` (= 100vh/720), so the UI scales with height and the promo column
-     (1fr) absorbs any extra width — fills any aspect ratio, no bars, no crop.
-     Portrait: the CSS @media block reflows into a stacked column; nothing to do
-     here. We keep this hook only to handle orientation changes cleanly. */
-  function fit(){ /* layout is pure CSS now; nothing to compute */ }
-  addEventListener('resize',fit);
-  addEventListener('orientationchange',fit);
-  fit();
+  /* ---- banner carousel ---- */
+  (function(){
+    const track = document.getElementById('track');
+    const dotsWrap = document.getElementById('dots');
+    const count = track.children.length;
+    let cur = 0, timer;
+    for (let i = 0; i < count; i++){
+      const b = document.createElement('button');
+      b.setAttribute('aria-label', 'Go to banner ' + (i + 1));
+      b.addEventListener('click', () => go(i, true));
+      dotsWrap.appendChild(b);
+    }
+    const dots = [...dotsWrap.children];
+    function render(){
+      track.style.transform = 'translateX(-' + (cur * 100) + '%)';
+      dots.forEach((d, i) => d.classList.toggle('on', i === cur));
+    }
+    function go(i, manual){
+      cur = (i + count) % count;
+      render();
+      if (manual) restart();
+    }
+    function restart(){ clearInterval(timer); timer = setInterval(() => go(cur + 1), 5000); }
+    document.getElementById('prev').addEventListener('click', () => go(cur - 1, true));
+    document.getElementById('next').addEventListener('click', () => go(cur + 1, true));
+    render(); restart();
+  })();
 
-  /* ---- promo loop ---- */
-  const scenes=[...document.querySelectorAll('.scene')];
-  const ticks=[...document.querySelectorAll('.tk')];
-  let i=0;
-  setInterval(()=>{
-    scenes[i].classList.remove('on');
-    ticks[i].classList.remove('active');
-    i=(i+1)%scenes.length;
-    scenes[i].classList.add('on');
-    void ticks[i].querySelector('i').offsetWidth;
-    ticks[i].classList.add('active');
-  },6000);
+  /* ---- show / hide password ---- */
+  (function(){
+    const pass = document.getElementById('pass');
+    const btn = document.getElementById('toggle');
+    const icon = document.getElementById('eyeIcon');
+    const eye = '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>';
+    const eyeOff = '<path d="M9.88 9.88a3 3 0 0 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/>';
+    btn.addEventListener('click', () => {
+      const show = pass.type === 'password';
+      pass.type = show ? 'text' : 'password';
+      icon.innerHTML = show ? eyeOff : eye;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+  })();
 
-  /* ---- floating coins ---- */
-  const cw=document.getElementById('coins');
-  for(let n=0;n<14;n++){
-    const c=document.createElement('div');c.className='coin';
-    c.style.left=(Math.random()*100)+'%';
-    c.style.animationDelay=(Math.random()*7)+'s';
-    c.style.animationDuration=(5+Math.random()*4)+'s';
-    cw.appendChild(c);
-  }
+  /* ---- remember me prefill ---- */
+  (function(){
+    try {
+      if (localStorage.getItem(AOG_KEYS.remember) === 'true') {
+        const accts = JSON.parse(localStorage.getItem(AOG_KEYS.accounts) || '[]');
+        if (accts.length){
+          const last = accts[accts.length - 1];
+          document.getElementById('user').value = last.user || last.username || '';
+          document.getElementById('remember').checked = true;
+        }
+      }
+    } catch (e) { /* storage unavailable */ }
+  })();
 
-  /* ---- QR is now a fixed image (QR.png) — no rotation needed ---- */
+  /* ---- submit: authenticate against the AOG API, then open the kiosk ---- */
+  (function(){
+    const form = document.getElementById('loginForm');
+    const user = document.getElementById('user');
+    const pass = document.getElementById('pass');
+    const userMsg = document.getElementById('userMsg');
+    const passMsg = document.getElementById('passMsg');
+    const formMsg = document.getElementById('formMsg');
+    const remember = document.getElementById('remember');
+    const submit = document.getElementById('submit');
+
+    function clearErr(){
+      user.classList.remove('err'); pass.classList.remove('err');
+      userMsg.textContent = ''; passMsg.textContent = ''; formMsg.textContent = '';
+    }
+    user.addEventListener('input', clearErr);
+    pass.addEventListener('input', clearErr);
+
+    function setLoading(on){
+      submit.disabled = on;
+      submit.textContent = on ? 'Signing In…' : 'Sign In';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErr();
+      let ok = true;
+      if (!user.value.trim()){ user.classList.add('err'); userMsg.textContent = 'Member ID or Email is required'; ok = false; }
+      if (!pass.value){ pass.classList.add('err'); passMsg.textContent = 'Password is required'; ok = false; }
+      if (!ok) return;
+
+      setLoading(true);
+      try {
+        const res = await fetch(AOG_API + '/auth/login-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: user.value.trim(), pass: pass.value })
+        });
+        const json = await res.json().catch(() => ({}));
+
+        if (!res.ok || !json.success || !json.data || !json.data.accessToken) {
+          formMsg.textContent = json.message || 'Login failed. Please try again.';
+          setLoading(false);
+          return;
+        }
+
+        // Persist session for the kiosk page.
+        localStorage.setItem(AOG_KEYS.token, json.data.accessToken);
+        localStorage.setItem(AOG_KEYS.user, JSON.stringify(json.data.userData || {}));
+
+        // Remember me — username only, never the password.
+        if (remember.checked){
+          localStorage.setItem(AOG_KEYS.remember, 'true');
+          localStorage.setItem(AOG_KEYS.accounts, JSON.stringify([{ user: user.value.trim() }]));
+        } else {
+          localStorage.removeItem(AOG_KEYS.remember);
+          localStorage.removeItem(AOG_KEYS.accounts);
+        }
+
+        window.location.href = 'kiosk.html';
+      } catch (err) {
+        formMsg.textContent = 'Network error — check your connection and try again.';
+        setLoading(false);
+      }
+    });
+
+    document.getElementById('forgot').addEventListener('click', () =>
+      alert('Forgot password — please contact your store associate.'));
+  })();
 </script>
 </body>
 </html>

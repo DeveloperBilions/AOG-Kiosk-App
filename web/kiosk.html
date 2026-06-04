@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AOG — Store Mode Kiosk</title>
+<script src="config.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --lime:#A5FF08;
+    --lime-dim:#7db300;
+    --ink:#000000;
+    --panel:#0a0b08;
+    --panel2:#111309;
+    --line:rgba(165,255,8,.16);
+    --txt:#e9ffce;
+    --mut:#6f7a55;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;overflow:hidden;font-family:'Chakra Petch',sans-serif}
+
+  /* Fluid 16:9-derived layout.
+     `--u` is one design unit = 1px of the original 720px-tall mock, expressed
+     relative to the real viewport height. Every formerly-fixed pixel value is
+     written as `calc(N * var(--u))`, so the whole UI scales with screen HEIGHT
+     and never crops vertically. The promo column is `1fr`, so any EXTRA width
+     (phones wider than 16:9) is absorbed there with no bars and no distortion. */
+  :root{ --u: calc(100vh / 720); }
+
+  .wrap{position:fixed;inset:0;background:
+     radial-gradient(120% 80% at 80% -10%, rgba(165,255,8,.10), transparent 60%),
+     #000;}
+  .stage{
+    position:absolute;inset:0;            /* fill the whole screen — no letterbox */
+    width:100%;height:100%;
+    background:var(--ink);
+    overflow:hidden;
+    display:grid;
+    grid-template-columns:1fr calc(430 * var(--u));
+    grid-template-rows:calc(64 * var(--u)) 1fr calc(40 * var(--u));
+  }
+
+  /* ---------- HEADER ---------- */
+  .bar{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;
+    padding:0 calc(26 * var(--u));border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(165,255,8,.06),transparent);}
+  .brand{display:flex;align-items:center;gap:calc(12 * var(--u))}
+  .logo{font-family:'Anton';font-size:calc(30 * var(--u));letter-spacing:1px;color:var(--lime);
+    text-shadow:0 0 22px rgba(165,255,8,.5);line-height:1}
+  .logo span{color:#fff}
+  .tag{font-size:calc(11 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:3px}
+  .live{display:flex;align-items:center;gap:9px;font-size:calc(12 * var(--u));letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .logout{margin-left:calc(14 * var(--u));background:transparent;border:1px solid var(--line);
+    color:var(--mut);font-family:inherit;font-size:calc(11 * var(--u));letter-spacing:2px;
+    text-transform:uppercase;padding:calc(5 * var(--u)) calc(12 * var(--u));border-radius:8px;
+    cursor:pointer;transition:color .2s,border-color .2s}
+  .logout:hover{color:var(--lime);border-color:rgba(165,255,8,.4)}
+
+  /* ---------- PROMO LOOP ---------- */
+  .promo{position:relative;overflow:hidden;background:
+     radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
+     linear-gradient(160deg,#0c0e07,#000);}
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:calc(54 * var(--u)) calc(60 * var(--u));opacity:0;transform:scale(1.04);transition:opacity .9s ease, transform 6s ease;}
+  .scene.on{opacity:1;transform:scale(1)}
+  .kicker{font-size:calc(13 * var(--u));letter-spacing:5px;text-transform:uppercase;color:var(--lime);margin-bottom:calc(14 * var(--u))}
+  .head{font-family:'Anton';font-size:calc(74 * var(--u));line-height:.94;color:#fff;letter-spacing:.5px;max-width:calc(620 * var(--u))}
+  .head em{font-style:normal;color:var(--lime);text-shadow:0 0 28px rgba(165,255,8,.45)}
+  .sub{margin-top:calc(20 * var(--u));font-size:calc(18 * var(--u));color:var(--txt);max-width:calc(520 * var(--u));line-height:1.5;opacity:.85}
+
+  /* floating game tiles */
+  .tiles{position:absolute;right:calc(-30 * var(--u));bottom:calc(-20 * var(--u));width:calc(340 * var(--u));height:calc(340 * var(--u))}
+  .tile{position:absolute;width:calc(120 * var(--u));height:calc(120 * var(--u));border-radius:18px;border:1px solid var(--line);
+    background:linear-gradient(145deg,#15180d,#0a0b07);display:grid;place-items:center;
+    box-shadow:0 18px 40px rgba(0,0,0,.6);animation:float 5s ease-in-out infinite}
+  .tile .ic{font-size:calc(46 * var(--u));filter:drop-shadow(0 0 16px rgba(165,255,8,.4))}
+  .tile:nth-child(1){right:calc(120 * var(--u));bottom:calc(160 * var(--u));animation-delay:0s;transform:rotate(-6deg)}
+  .tile:nth-child(2){right:calc(10 * var(--u));bottom:calc(90 * var(--u));animation-delay:.8s;transform:rotate(5deg);border-color:rgba(165,255,8,.35)}
+  .tile:nth-child(3){right:calc(170 * var(--u));bottom:calc(20 * var(--u));animation-delay:1.4s;transform:rotate(3deg)}
+  @keyframes float{0%,100%{transform:translateY(0) rotate(var(--r,0))}50%{transform:translateY(-14px)}}
+
+  .coins{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .coin{position:absolute;width:14px;height:14px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #d9ff7a, var(--lime) 60%, var(--lime-dim));
+    box-shadow:0 0 10px rgba(165,255,8,.6);opacity:.0;animation:rise 7s linear infinite}
+  @keyframes rise{0%{transform:translateY(40px) scale(.6);opacity:0}
+    12%{opacity:.9}88%{opacity:.7}100%{transform:translateY(-720px) scale(1);opacity:0}}
+
+  /* progress ticks for the loop */
+  .ticks{position:absolute;left:calc(54 * var(--u));bottom:calc(34 * var(--u));display:flex;gap:8px}
+  .tk{width:calc(46 * var(--u));height:4px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+  .tk i{display:block;height:100%;width:0;background:var(--lime);box-shadow:0 0 8px var(--lime)}
+  .tk.active i{animation:fill 6s linear forwards}
+  @keyframes fill{to{width:100%}}
+
+  /* ---------- SIGNUP PANEL ---------- */
+  .join{position:relative;background:
+     linear-gradient(180deg,#0b0d07,#050603);
+     border-left:1px solid var(--line);padding:calc(30 * var(--u)) calc(30 * var(--u)) calc(22 * var(--u));
+     display:flex;flex-direction:column;align-items:center}
+  .join:before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,transparent,var(--lime),transparent)}
+  .jtitle{font-family:'Anton';font-size:calc(34 * var(--u));color:#fff;letter-spacing:.5px;text-align:center;line-height:1}
+  .jtitle em{font-style:normal;color:var(--lime)}
+  .jsmall{font-size:calc(12 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:calc(8 * var(--u));text-align:center}
+
+  .qrbox{position:relative;margin:calc(20 * var(--u)) 0 calc(6 * var(--u));width:calc(236 * var(--u));height:calc(236 * var(--u));border-radius:20px;
+    background:#fff;display:grid;place-items:center;
+    box-shadow:0 0 0 2px var(--lime), 0 0 40px rgba(165,255,8,.35);overflow:hidden}
+  #qr{width:86%;height:86%;object-fit:contain}
+  #qr{transition:opacity .35s}
+  #qr.flip{opacity:.15}
+  .scanline{position:absolute;left:8px;right:8px;height:34px;border-radius:8px;
+    background:linear-gradient(180deg,rgba(165,255,8,0),rgba(165,255,8,.35),rgba(165,255,8,0));
+    animation:scan 2.6s ease-in-out infinite;pointer-events:none}
+  @keyframes scan{0%,100%{top:8px}50%{top:194px}}
+  .corner{position:absolute;width:22px;height:22px;border:3px solid var(--lime)}
+  .c1{top:8px;left:8px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+  .c2{top:8px;right:8px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+  .c3{bottom:8px;left:8px;border-right:0;border-top:0;border-radius:0 0 0 6px}
+  .c4{bottom:8px;right:8px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+
+  .token{display:flex;align-items:center;gap:8px;font-family:'Space Mono';font-size:calc(11 * var(--u));
+    color:var(--mut);letter-spacing:1px;margin-top:calc(2 * var(--u))}
+  .token b{color:var(--lime-dim)}
+  .ring{position:relative;width:16px;height:16px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:3}
+  .ring .bg{stroke:rgba(165,255,8,.18)}
+  .ring .fg{stroke:var(--lime);stroke-linecap:round;stroke-dasharray:38;
+    animation:ring 45s linear infinite}
+  @keyframes ring{from{stroke-dashoffset:0}to{stroke-dashoffset:38}}
+
+  .steps{display:flex;gap:calc(8 * var(--u));margin-top:calc(16 * var(--u));width:100%}
+  .step{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:calc(11 * var(--u)) calc(8 * var(--u));text-align:center}
+  .step .n{font-family:'Anton';font-size:calc(18 * var(--u));color:var(--lime);line-height:1}
+  .step .t{font-size:calc(11 * var(--u));color:var(--txt);margin-top:5px;letter-spacing:.4px;line-height:1.25;text-transform:uppercase;opacity:.85}
+
+  .store{margin-top:calc(16 * var(--u));width:100%;border-radius:12px;padding:calc(12 * var(--u)) calc(14 * var(--u));text-align:center;
+    background:linear-gradient(180deg,rgba(165,255,8,.10),rgba(165,255,8,.03));
+    border:1px solid var(--line)}
+  .store .lbl{font-size:calc(10 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase}
+  .store .nm{font-family:'Anton';font-size:calc(20 * var(--u));color:#fff;margin-top:3px;letter-spacing:.5px}
+  .store .nm span{color:var(--lime)}
+
+  /* ---------- FOOTER COMPLIANCE ---------- */
+  .foot{grid-column:1/3;display:flex;align-items:center;justify-content:center;gap:calc(18 * var(--u));
+    border-top:1px solid var(--line);background:#050603;
+    font-size:calc(10 * var(--u));letter-spacing:1.5px;color:var(--mut);text-transform:uppercase}
+  .foot b{color:var(--lime-dim)}
+  .sep{width:4px;height:4px;border-radius:50%;background:var(--mut);opacity:.5}
+
+  .scanhint{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);
+    font-size:11px;letter-spacing:2px;color:var(--lime);text-transform:uppercase;
+    animation:blink 2s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:.4}50%{opacity:1}}
+
+  /* ============================================================
+     PORTRAIT / PHONE LAYOUT
+     The kiosk is a fixed 1280x720 landscape stage on TV. On a
+     portrait phone we drop the fixed size + scale transform and
+     reflow everything into a single scrollable column, with the
+     sign-up panel (QR) promoted to the top.
+     ============================================================ */
+  @media (orientation:portrait){
+    /* In portrait we reflow to a column; pin the design unit to a fixed px so
+       the base calc(N*var(--u)) sizes stay sensible (100vh-based --u would be
+       huge on a tall phone). Tuned to the phone width instead. */
+    :root{ --u: calc(100vw / 430); }
+    html,body{overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;width:100%}
+    .wrap{position:static;display:block;min-height:100%;width:100%;overflow-x:hidden}
+
+    .stage{
+      position:static !important;top:auto !important;left:auto !important;
+      width:100%;max-width:100%;height:auto;min-height:100vh;
+      transform:none !important;            /* override inline JS scale */
+      border-radius:0;box-shadow:none;overflow-x:hidden;
+      display:flex;flex-direction:column;
+    }
+    /* promo decorations can extend past the edge — clip them, don't scroll */
+    .promo{overflow:hidden}
+
+    /* header */
+    .bar{order:1;padding:16px 20px}
+    .logo{font-size:26px}
+
+    /* sign-up panel first — the call to action on a phone */
+    .join{order:2;border-left:0;border-bottom:1px solid var(--line);
+      padding:26px 22px 30px;overflow:hidden}
+    .qrbox{width:60vw;max-width:280px;height:60vw;max-height:280px;margin:18px 0 8px}
+    #qr{width:86%;height:86%;object-fit:contain}
+    .scanline{animation:none;display:none}     /* fixed box height differs; hide scanner */
+    .jtitle{font-size:30px}
+    .steps{width:100%;max-width:440px;gap:6px}
+    .step{padding:10px 4px}
+    .step .t{font-size:10px;letter-spacing:.2px}
+    .store{width:100%;max-width:440px}
+
+    /* promo loop below — give it a real height so scenes are visible */
+    .promo{order:3;position:relative;min-height:62vh;width:100%;max-width:100vw;overflow:hidden}
+    .scene{padding:34px 26px;max-width:100%}
+    .kicker{font-size:12px;letter-spacing:4px;margin-bottom:10px}
+    .head{font-size:clamp(40px,12vw,68px);max-width:none}
+    .sub{font-size:16px;max-width:none}
+    .tiles{width:200px;height:200px;right:-10px;bottom:-10px}
+    .tile{width:84px;height:84px}
+    .tile .ic{font-size:34px}
+    .tile:nth-child(1){right:78px;bottom:96px}
+    .tile:nth-child(2){right:6px;bottom:52px}
+    .tile:nth-child(3){right:104px;bottom:8px}
+    .ticks{left:26px;bottom:22px}
+
+    /* footer */
+    .foot{order:4;flex-wrap:wrap;gap:8px 14px;padding:14px 18px;text-align:center}
+  }
+
+  /* Very short / small phones: tighten the promo so it doesn't dominate */
+  @media (orientation:portrait) and (max-height:680px){
+    .promo{min-height:48vh}
+    .head{font-size:clamp(34px,11vw,52px)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage" id="stage">
+
+    <!-- HEADER -->
+    <div class="bar">
+      <div class="brand">
+        <div>
+          <div class="logo">AOG<span>.</span></div>
+          <div class="tag">Sweepstakes · Play Free</div>
+        </div>
+      </div>
+      <div class="live">
+        <span class="dot"></span> In-Store Live
+        <button type="button" id="logout" class="logout">Logout</button>
+      </div>
+    </div>
+
+    <!-- PROMO LOOP -->
+    <div class="promo" id="promo">
+      <div class="coins" id="coins"></div>
+
+      <div class="scene on">
+        <div class="kicker">Free To Play</div>
+        <div class="head">PLAY THE<br><em>HOTTEST GAMES</em><br>ON US.</div>
+        <div class="sub">Get Gold Coins to play plus free Sweepstakes Coins the moment you join. No purchase necessary.</div>
+        <div class="tiles">
+          <div class="tile"><div class="ic">🎰</div></div>
+          <div class="tile"><div class="ic">🐟</div></div>
+          <div class="tile"><div class="ic">⚡</div></div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="kicker">Daily Rewards</div>
+        <div class="head">LOG IN<br>EVERY DAY.<br><em>STACK COINS.</em></div>
+        <div class="sub">Daily login bonuses, drops and challenges — fresh rewards waiting each time you come back.</div>
+        <div class="tiles">
+          <div class="tile"><div class="ic">🪙</div></div>
+          <div class="tile"><div class="ic">🎁</div></div>
+          <div class="tile"><div class="ic">🔥</div></div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="kicker">Redeem</div>
+        <div class="head">TURN COINS<br>INTO<br><em>REAL REWARDS.</em></div>
+        <div class="sub">Collect Sweepstakes Coins as you play and redeem them for cash prizes. Fast, secure payouts.</div>
+        <div class="tiles">
+          <div class="tile"><div class="ic">💸</div></div>
+          <div class="tile"><div class="ic">🏆</div></div>
+          <div class="tile"><div class="ic">✨</div></div>
+        </div>
+      </div>
+
+      <div class="ticks">
+        <div class="tk active"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+      </div>
+    </div>
+
+    <!-- SIGNUP PANEL -->
+    <div class="join">
+      <div class="jtitle">SCAN TO <em>JOIN</em></div>
+      <div class="jsmall">Sign up on your phone</div>
+
+      <div class="qrbox">
+        <div class="corner c1"></div><div class="corner c2"></div>
+        <div class="corner c3"></div><div class="corner c4"></div>
+        <img id="qr" src="QR.png" alt="Scan to join" width="204" height="204" />
+        <div class="scanline"></div>
+      </div>
+
+      <div class="token" id="tokenLine">
+        <div class="dot" style="width:8px;height:8px"></div>
+        <span id="tokenText">secure code · scan to sign up</span>
+      </div>
+
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div class="t">Scan code</div></div>
+        <div class="step"><div class="n">2</div><div class="t">Sign up free</div></div>
+        <div class="step"><div class="n">3</div><div class="t">Start playing</div></div>
+      </div>
+
+      <div class="store">
+        <div class="lbl">You're joining via</div>
+        <div class="nm" id="storeName">AOG <span>Agent</span></div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="foot">
+      <span><b>18+</b> only</span><span class="sep"></span>
+      <span>No purchase necessary</span><span class="sep"></span>
+      <span>Sweepstakes void where prohibited</span><span class="sep"></span>
+      <span>Value Vends Tech LLC</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---- fluid sizing ----
+     Landscape/TV: the stage fills the screen (CSS inset:0) and all sizes derive
+     from `--u` (= 100vh/720), so the UI scales with height and the promo column
+     (1fr) absorbs any extra width — fills any aspect ratio, no bars, no crop.
+     Portrait: the CSS @media block reflows into a stacked column; nothing to do
+     here. We keep this hook only to handle orientation changes cleanly. */
+  function fit(){ /* layout is pure CSS now; nothing to compute */ }
+  addEventListener('resize',fit);
+  addEventListener('orientationchange',fit);
+  fit();
+
+  /* ---- promo loop ---- */
+  const scenes=[...document.querySelectorAll('.scene')];
+  const ticks=[...document.querySelectorAll('.tk')];
+  let i=0;
+  setInterval(()=>{
+    scenes[i].classList.remove('on');
+    ticks[i].classList.remove('active');
+    i=(i+1)%scenes.length;
+    scenes[i].classList.add('on');
+    void ticks[i].querySelector('i').offsetWidth;
+    ticks[i].classList.add('active');
+  },6000);
+
+  /* ---- floating coins ---- */
+  const cw=document.getElementById('coins');
+  for(let n=0;n<14;n++){
+    const c=document.createElement('div');c.className='coin';
+    c.style.left=(Math.random()*100)+'%';
+    c.style.animationDelay=(Math.random()*7)+'s';
+    c.style.animationDuration=(5+Math.random()*4)+'s';
+    cw.appendChild(c);
+  }
+
+  /* ---- live referral QR ----
+     Requires a session from the login screen. Fetch the agent's referral
+     tokens, pick the freshest active one, then load its QR image WITH the
+     Bearer header (an <img src> can't send headers, so we fetch -> blob URL).
+     On any failure we keep the bundled QR.png so the kiosk still shows code. */
+  (function(){
+    const qrImg    = document.getElementById('qr');
+    const tokenTxt = document.getElementById('tokenText');
+    const storeNm  = document.getElementById('storeName');
+    let blobUrl = null;
+
+    // No session -> back to login (typed-login flow).
+    const token = (function(){ try { return localStorage.getItem(AOG_KEYS.token); } catch(e){ return null; } })();
+    if (!token) { location.href = 'index.html'; return; }
+
+    // Show the signed-in agent's name in the "joining via" panel.
+    try {
+      const u = JSON.parse(localStorage.getItem(AOG_KEYS.user) || '{}');
+      const name = [u.firstname, u.lastname].filter(Boolean).join(' ').trim();
+      if (name) storeNm.innerHTML = 'Agent <span>' + name + '</span>';
+    } catch(e){ /* ignore */ }
+
+    function pickActive(tokens){
+      const active = (tokens || []).filter(t => t && t.status === 'active');
+      // my-tokens returns freshest first; keep that order.
+      return active[0] || (tokens && tokens[0]) || null;
+    }
+
+    async function loadQR(){
+      try {
+        const res = await authFetch('/referral/my-tokens');   // 401 -> redirects + throws
+        const json = await res.json().catch(() => ({}));
+        const tok = json && json.data ? pickActive(json.data.tokens) : null;
+        if (!tok) { tokenTxt.textContent = 'no active referral link'; return; }
+
+        // Build the path relative to AOG_API. (tok.qrEndpoint is "/api/referral/…",
+        // which already includes the /api prefix, so we don't use it directly.)
+        const qrRes = await authFetch('/referral/' + tok.token + '/qr?format=png&size=512');
+        if (!qrRes.ok) { tokenTxt.textContent = 'secure code · scan to sign up'; return; }
+
+        const blob = await qrRes.blob();
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        blobUrl = URL.createObjectURL(blob);
+        qrImg.src = blobUrl;
+        tokenTxt.textContent = 'secure code · scan to sign up';
+      } catch (err) {
+        // authFetch already redirects on 401; for network errors keep QR.png.
+        console.warn('QR load failed, keeping fallback QR.png:', err);
+        tokenTxt.textContent = 'secure code · scan to sign up';
+      }
+    }
+
+    loadQR();
+    // Refresh the QR periodically so it can't go stale on a long-running kiosk.
+    setInterval(loadQR, 10 * 60 * 1000);
+    addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });
+
+    // Logout — clear the session and return to the login screen.
+    document.getElementById('logout').addEventListener('click', () => {
+      try {
+        localStorage.removeItem(AOG_KEYS.token);
+        localStorage.removeItem(AOG_KEYS.user);
+      } catch (e) { /* storage unavailable */ }
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      location.href = 'index.html';
+    });
+  })();
+</script>
+</body>
+</html>
