@@ -411,27 +411,50 @@
       return active[0] || (tokens && tokens[0]) || null;
     }
 
-    async function loadQR(){
+    let loaded = false;         // true once a LIVE QR is on screen
+    let retryTimer = null;
+
+    // Fetch the live QR once. Returns true on success, false on a (retryable)
+    // failure. Throws only via authFetch's 401 redirect (which leaves the page).
+    async function fetchQR(){
+      const res = await authFetch('/referral/my-tokens');   // 401 -> redirects away
+      const json = await res.json().catch(() => ({}));
+      const tok = json && json.data ? pickActive(json.data.tokens) : null;
+      if (!tok) { tokenTxt.textContent = 'no active referral link'; return false; }
+
+      // Build the path relative to AOG_API. (tok.qrEndpoint is "/api/referral/…",
+      // which already includes the /api prefix, so we don't use it directly.)
+      const qrRes = await authFetch('/referral/' + tok.token + '/qr?format=png&size=512');
+      if (!qrRes.ok) return false;
+
+      const blob = await qrRes.blob();
+      if (!blob || blob.size === 0) return false;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(blob);
+      qrImg.src = blobUrl;
+      loaded = true;
+      tokenTxt.textContent = 'secure code · scan to sign up';
+      return true;
+    }
+
+    // Load with retry/backoff. Until a LIVE QR loads we DON'T leave the stale
+    // QR.png looking authoritative — we show a clear status so a transient
+    // failure is visible (and self-heals on the next retry) instead of silently
+    // appearing to work.
+    async function loadQR(attempt){
+      attempt = attempt || 1;
+      clearTimeout(retryTimer);
+      if (!loaded) tokenTxt.textContent = attempt === 1 ? 'loading your code…' : 'reconnecting…';
       try {
-        const res = await authFetch('/referral/my-tokens');   // 401 -> redirects + throws
-        const json = await res.json().catch(() => ({}));
-        const tok = json && json.data ? pickActive(json.data.tokens) : null;
-        if (!tok) { tokenTxt.textContent = 'no active referral link'; return; }
-
-        // Build the path relative to AOG_API. (tok.qrEndpoint is "/api/referral/…",
-        // which already includes the /api prefix, so we don't use it directly.)
-        const qrRes = await authFetch('/referral/' + tok.token + '/qr?format=png&size=512');
-        if (!qrRes.ok) { tokenTxt.textContent = 'secure code · scan to sign up'; return; }
-
-        const blob = await qrRes.blob();
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
-        blobUrl = URL.createObjectURL(blob);
-        qrImg.src = blobUrl;
-        tokenTxt.textContent = 'secure code · scan to sign up';
+        const ok = await fetchQR();
+        if (!ok && attempt < 6) {
+          retryTimer = setTimeout(() => loadQR(attempt + 1), Math.min(2000 * attempt, 10000));
+        } else if (!ok) {
+          tokenTxt.textContent = 'tap logout & sign in again';
+        }
       } catch (err) {
-        // authFetch already redirects on 401; for network errors keep QR.png.
-        console.warn('QR load failed, keeping fallback QR.png:', err);
-        tokenTxt.textContent = 'secure code · scan to sign up';
+        // authFetch already redirected on 401; nothing more to do here.
+        console.warn('QR load error:', err);
       }
     }
 

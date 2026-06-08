@@ -19,7 +19,8 @@
     opts = opts || {};
     const token = localStorage.getItem(w.AOG_KEYS.token);
     const headers = Object.assign({}, opts.headers, token ? { Authorization: 'Bearer ' + token } : {});
-    const res = await fetch(w.AOG_API + path, Object.assign({}, opts, { headers }));
+    // no-store so a kiosk WebView never serves a stale referral QR / token list.
+    const res = await fetch(w.AOG_API + path, Object.assign({ cache: 'no-store' }, opts, { headers }));
     if (res.status === 401) {
       try {
         localStorage.removeItem(w.AOG_KEYS.token);
