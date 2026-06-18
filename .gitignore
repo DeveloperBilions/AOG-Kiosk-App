@@ -26,3 +26,7 @@ android/*.jpg
 
 # Built APKs (distributed via GitHub Releases, not tracked in git)
 dist/*.apk
+
+# Generated enrollment QR (regenerate with tools/make-enrollment-qr.py)
+android/tools/enrollment-qr.png
+enrollment-qr.png
