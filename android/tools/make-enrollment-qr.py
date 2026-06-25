@@ -90,6 +90,11 @@ def main():
     p.add_argument("--wifi-security", default="WPA",
                    choices=["WPA", "WEP", "NONE"], help="Wi-Fi security type.")
     p.add_argument("--out", default="enrollment-qr.png", help="Output PNG path.")
+    p.add_argument("--skip-encryption", action="store_true",
+                   help="Ask setup to skip device encryption (faster). OFF by "
+                        "default — Samsung/One UI often rejects this with an "
+                        "immediate 'access denied', so only enable it on devices "
+                        "you've confirmed accept it.")
     args = p.parse_args()
 
     # --- Resolve the signing checksum --------------------------------------
@@ -109,9 +114,11 @@ def main():
         "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": args.url,
         # Keep the stock Settings/system apps available (you'll want Settings).
         "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": True,
-        # Skip the forced full-disk encryption prompt for a faster setup.
-        "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": True,
     }
+    # Skipping encryption speeds setup but Samsung/One UI commonly rejects it
+    # outright ("access denied" right after the scan), so it's opt-in only.
+    if args.skip_encryption:
+        payload["android.app.extra.PROVISIONING_SKIP_ENCRYPTION"] = True
     if args.wifi_ssid:
         payload["android.app.extra.PROVISIONING_WIFI_SSID"] = args.wifi_ssid
         payload["android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"] = args.wifi_security
