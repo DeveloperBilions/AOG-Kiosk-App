@@ -1,15 +1,20 @@
 package com.thebilions.aogkiosk;
 
 import android.annotation.SuppressLint;
+import android.app.admin.DevicePolicyManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -34,6 +39,8 @@ public class KioskActivity extends AppCompatActivity {
 
     private WebView webView;
     private boolean showingOffline = false;
+    /** elapsedRealtime() of the last loadRemote(); 0 until the first load. */
+    private long lastLoadAt = 0L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refreshTask = new Runnable() {
@@ -51,6 +58,23 @@ public class KioskActivity extends AppCompatActivity {
         // Never let the TV sleep while the kiosk is foreground.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        buildWebView();
+
+        // Enter single-app kiosk lockdown. Unbreakable when the app is Device
+        // Owner; falls back to escapable screen-pinning otherwise. On Fire OS,
+        // which lacks the Device-Owner framework, this gracefully no-ops.
+        enterKioskMode();
+
+        loadRemote();
+    }
+
+    /**
+     * Create and configure the kiosk WebView, install it as the content view,
+     * and wire up the WebViewClient. Factored out so the render-crash recovery
+     * path can rebuild the view from scratch with identical settings.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private void buildWebView() {
         webView = new WebView(this);
         setContentView(webView);
 
@@ -62,6 +86,23 @@ public class KioskActivity extends AppCompatActivity {
         s.setMediaPlaybackRequiresUserGesture(false);
         // Prefer fresh content from the network; assets are the offline fallback.
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        // ---- Fire TV / older-WebView compatibility ---------------------------
+        // Fire OS ships an older Chromium than stock Android TV. These settings
+        // keep the hosted page rendering correctly on those engines:
+        //  - Allow mixed content: the offline fallback (file://) and some hosted
+        //    sub-resources can otherwise be blocked by stricter old defaults.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        }
+        // file:// asset pages need these to read their own bundled JS/CSS on
+        // older WebViews where they default to false.
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+        // A modern-ish UA string nudges hosts that sniff for old Chromium into
+        // serving the standard (non-degraded) page to the Fire TV WebView.
+        s.setUserAgentString(s.getUserAgentString() + " AOGKiosk/" + BuildConfig.VERSION_NAME);
+        // ---------------------------------------------------------------------
 
         webView.setBackgroundColor(0xFF000000);
         webView.setWebViewClient(new WebViewClient() {
@@ -81,14 +122,75 @@ public class KioskActivity extends AppCompatActivity {
                     view.loadUrl(OFFLINE_URL);
                 }
             }
-        });
 
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // Fire OS's older WebView can crash the render process on a heavy
+                // page, leaving a permanently black kiosk. Rebuild the WebView and
+                // reload so the kiosk self-heals instead of needing a power-cycle.
+                if (view == webView) {
+                    rebuildWebViewAndReload();
+                }
+                return true; // we handled it; don't let the system kill the app
+            }
+        });
+    }
+
+    /**
+     * Recover from a WebView render-process crash (seen on Fire OS's older
+     * WebView under memory pressure). The crashed WebView is unusable, so we
+     * destroy it, build a fresh one, and reload the kiosk page.
+     */
+    private void rebuildWebViewAndReload() {
+        WebView dead = webView;
+        webView = null;
+        if (dead != null) {
+            dead.destroy();
+        }
+        buildWebView();
         loadRemote();
+    }
+
+    /**
+     * Lock the device to this single app.
+     *
+     * <p>If the app is Device Owner we first configure the lock-task policy
+     * (whitelist + which system features stay visible), which makes the lock
+     * <i>unbreakable</i>: no HOME, no recents, no notification shade, no exit.
+     * If the app is NOT Device Owner, {@code startLockTask()} still pins the
+     * app but the user can escape by holding Back+Recents — acceptable only for
+     * trusted internal use.
+     */
+    private void enterKioskMode() {
+        DevicePolicyManager dpm =
+                (DevicePolicyManager) getSystemService(Context.DEVICE_POLICY_SERVICE);
+
+        if (dpm != null && dpm.isDeviceOwnerApp(getPackageName())) {
+            ComponentName admin = KioskDeviceAdminReceiver.getComponentName(this);
+            dpm.setLockTaskPackages(admin, new String[]{ getPackageName() });
+
+            // Choose which system affordances remain during lock-task. NONE =
+            // maximum lockdown (no home, no overview, no notifications, no system
+            // info, no global actions). Loosen here if you want e.g. the clock.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE);
+            }
+        }
+
+        // Safe to call on API 21+. Only actually locks (vs. pins) when the
+        // package is lock-task-whitelisted above.
+        try {
+            startLockTask();
+        } catch (Exception ignored) {
+            // Some non-owner devices throw if pinning is disabled in Settings;
+            // the immersive fullscreen + BACK swallow still apply.
+        }
     }
 
     /** Attempt the hosted page; the error handler swaps to offline on failure. */
     private void loadRemote() {
         showingOffline = false;
+        lastLoadAt = SystemClock.elapsedRealtime();
         webView.loadUrl(BuildConfig.KIOSK_URL);
     }
 
@@ -96,9 +198,22 @@ public class KioskActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         applyImmersive();
-        loadRemote();                       // refresh on resume
+        enterKioskMode();                   // re-assert the lock if it ever dropped
+
+        // Refresh on resume, but only once content is actually stale. Without
+        // this guard a transient focus loss (e.g. a system dialog flashing) would
+        // trigger an immediate reload AND restart the timer on every resume,
+        // flickering the page. We reload only if it's been at least one refresh
+        // interval since the last load; otherwise we just keep the timer running.
         handler.removeCallbacks(refreshTask);
-        handler.postDelayed(refreshTask, BuildConfig.REFRESH_INTERVAL_MS);
+        long sinceLastLoad = SystemClock.elapsedRealtime() - lastLoadAt;
+        if (lastLoadAt == 0L || sinceLastLoad >= BuildConfig.REFRESH_INTERVAL_MS) {
+            loadRemote();
+            handler.postDelayed(refreshTask, BuildConfig.REFRESH_INTERVAL_MS);
+        } else {
+            // Resume the timer for the remainder of the current interval.
+            handler.postDelayed(refreshTask, BuildConfig.REFRESH_INTERVAL_MS - sinceLastLoad);
+        }
     }
 
     @Override

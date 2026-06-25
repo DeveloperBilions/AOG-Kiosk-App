@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Relaunch the kiosk automatically after the tablet reboots. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Android TV boxes have no touchscreen; declare it optional so the app
          installs and shows up on the TV home screen. -->
@@ -13,6 +15,18 @@
          tablets/phones if you ever sideload it there. -->
     <uses-feature
         android:name="android.software.leanback"
+        android:required="false" />
+    <!-- Amazon Fire TV runs a forked Android (Fire OS). Declaring its hardware
+         feature as optional keeps the APK installable on Fire TV Sticks AND on
+         regular Android TV/tablets. Marking it required:false (not true) avoids
+         locking the app to Fire-only devices. -->
+    <uses-feature
+        android:name="amazon.hardware.fire_tv"
+        android:required="false" />
+    <!-- Fire TV Sticks ship without a GPS/telephony/camera; declaring these
+         optional prevents the store/installer from filtering the APK out. -->
+    <uses-feature
+        android:name="android.hardware.gamepad"
         android:required="false" />
 
     <application
@@ -36,6 +50,53 @@
                 <!-- Also a normal launcher so it's reachable on non-TV devices. -->
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- HOME + DEFAULT let the Device Owner pin this as the persistent
+                 home activity, so the tablet's HOME button returns to the kiosk
+                 instead of the system launcher. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- Handles the Android 11+ QR-provisioning handshake (no ADB needed). -->
+        <activity
+            android:name=".ProvisioningActivity"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.app.action.GET_PROVISIONING_MODE" />
+                <action android:name="android.app.action.ADMIN_POLICY_COMPLIANCE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Device-admin / Device-Owner component that enables unbreakable
+             Lock Task (kiosk) mode and finalizes QR provisioning. -->
+        <receiver
+            android:name=".KioskDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+                <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Relaunch the kiosk on boot. -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
