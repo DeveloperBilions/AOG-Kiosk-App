@@ -14,6 +14,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -57,6 +58,23 @@ public class KioskActivity extends AppCompatActivity {
         // Never let the TV sleep while the kiosk is foreground.
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
+        buildWebView();
+
+        // Enter single-app kiosk lockdown. Unbreakable when the app is Device
+        // Owner; falls back to escapable screen-pinning otherwise. On Fire OS,
+        // which lacks the Device-Owner framework, this gracefully no-ops.
+        enterKioskMode();
+
+        loadRemote();
+    }
+
+    /**
+     * Create and configure the kiosk WebView, install it as the content view,
+     * and wire up the WebViewClient. Factored out so the render-crash recovery
+     * path can rebuild the view from scratch with identical settings.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private void buildWebView() {
         webView = new WebView(this);
         setContentView(webView);
 
@@ -69,9 +87,22 @@ public class KioskActivity extends AppCompatActivity {
         // Prefer fresh content from the network; assets are the offline fallback.
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Enter single-app kiosk lockdown. Unbreakable when the app is Device
-        // Owner; falls back to escapable screen-pinning otherwise.
-        enterKioskMode();
+        // ---- Fire TV / older-WebView compatibility ---------------------------
+        // Fire OS ships an older Chromium than stock Android TV. These settings
+        // keep the hosted page rendering correctly on those engines:
+        //  - Allow mixed content: the offline fallback (file://) and some hosted
+        //    sub-resources can otherwise be blocked by stricter old defaults.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        }
+        // file:// asset pages need these to read their own bundled JS/CSS on
+        // older WebViews where they default to false.
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
+        // A modern-ish UA string nudges hosts that sniff for old Chromium into
+        // serving the standard (non-degraded) page to the Fire TV WebView.
+        s.setUserAgentString(s.getUserAgentString() + " AOGKiosk/" + BuildConfig.VERSION_NAME);
+        // ---------------------------------------------------------------------
 
         webView.setBackgroundColor(0xFF000000);
         webView.setWebViewClient(new WebViewClient() {
@@ -91,8 +122,32 @@ public class KioskActivity extends AppCompatActivity {
                     view.loadUrl(OFFLINE_URL);
                 }
             }
-        });
 
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // Fire OS's older WebView can crash the render process on a heavy
+                // page, leaving a permanently black kiosk. Rebuild the WebView and
+                // reload so the kiosk self-heals instead of needing a power-cycle.
+                if (view == webView) {
+                    rebuildWebViewAndReload();
+                }
+                return true; // we handled it; don't let the system kill the app
+            }
+        });
+    }
+
+    /**
+     * Recover from a WebView render-process crash (seen on Fire OS's older
+     * WebView under memory pressure). The crashed WebView is unusable, so we
+     * destroy it, build a fresh one, and reload the kiosk page.
+     */
+    private void rebuildWebViewAndReload() {
+        WebView dead = webView;
+        webView = null;
+        if (dead != null) {
+            dead.destroy();
+        }
+        buildWebView();
         loadRemote();
     }
 

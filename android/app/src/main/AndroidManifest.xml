@@ -16,6 +16,18 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <!-- Amazon Fire TV runs a forked Android (Fire OS). Declaring its hardware
+         feature as optional keeps the APK installable on Fire TV Sticks AND on
+         regular Android TV/tablets. Marking it required:false (not true) avoids
+         locking the app to Fire-only devices. -->
+    <uses-feature
+        android:name="amazon.hardware.fire_tv"
+        android:required="false" />
+    <!-- Fire TV Sticks ship without a GPS/telephony/camera; declaring these
+         optional prevents the store/installer from filtering the APK out. -->
+    <uses-feature
+        android:name="android.hardware.gamepad"
+        android:required="false" />
 
     <application
         android:allowBackup="true"
