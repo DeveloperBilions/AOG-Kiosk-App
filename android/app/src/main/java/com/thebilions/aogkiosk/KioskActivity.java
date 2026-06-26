@@ -9,9 +9,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.RenderProcessGoneDetail;
@@ -20,6 +22,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * Full-screen Android TV kiosk.
@@ -104,6 +109,11 @@ public class KioskActivity extends AppCompatActivity {
         s.setUserAgentString(s.getUserAgentString() + " AOGKiosk/" + BuildConfig.VERSION_NAME);
         // ---------------------------------------------------------------------
 
+        // Expose a small native bridge to the hosted page so it can identify the
+        // physical device. Reachable from JS as window.AOGKiosk.* (see the
+        // KioskBridge methods below for what's available).
+        webView.addJavascriptInterface(new KioskBridge(), "AOGKiosk");
+
         webView.setBackgroundColor(0xFF000000);
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -149,6 +159,90 @@ public class KioskActivity extends AppCompatActivity {
         }
         buildWebView();
         loadRemote();
+    }
+
+    /**
+     * Native bridge exposed to the hosted page as {@code window.AOGKiosk}.
+     *
+     * <p>Lets the web content identify which physical kiosk it is running on —
+     * e.g. to register the device, scope content, or show it in a fleet
+     * dashboard. All methods return strings (JS-friendly) and are safe to call
+     * from any device, including Fire TV.
+     *
+     * <p>Usage from the page:
+     * <pre>
+     *   if (window.AOGKiosk) {
+     *     const id   = AOGKiosk.getDeviceId();          // stable per-device id
+     *     const info = JSON.parse(AOGKiosk.getDeviceInfo());
+     *     // info = { deviceId, model, manufacturer, device, product, fireOs }
+     *   }
+     * </pre>
+     */
+    private final class KioskBridge {
+
+        /**
+         * Stable per-device identifier: {@code Settings.Secure.ANDROID_ID}.
+         *
+         * <p>64-bit hex string, unique to the (device + app-signing-key) pair.
+         * Requires no permission and works on Fire OS. Survives reboots and app
+         * reinstalls (same signing key); it only changes on a factory reset —
+         * which is effectively a new deployment. Returns "" if unavailable.
+         */
+        @JavascriptInterface
+        public String getDeviceId() {
+            try {
+                String id = Settings.Secure.getString(
+                        getContentResolver(), Settings.Secure.ANDROID_ID);
+                return id != null ? id : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        /** Marketing model, e.g. "AFTKA" (Fire TV Stick 4K) or "AFTT". */
+        @JavascriptInterface
+        public String getModel() {
+            return safe(Build.MODEL);
+        }
+
+        /** Device hardware name, e.g. the Fire TV codename. */
+        @JavascriptInterface
+        public String getDeviceName() {
+            return safe(Build.DEVICE);
+        }
+
+        /** True when running on Amazon Fire OS (vs. stock Android TV). */
+        @JavascriptInterface
+        public boolean isFireOs() {
+            String mfr = Build.MANUFACTURER == null ? "" : Build.MANUFACTURER;
+            return mfr.toLowerCase().contains("amazon");
+        }
+
+        /**
+         * Everything above plus a couple of extras, as a JSON string the page
+         * can {@code JSON.parse()}. Single call = one round-trip for the page's
+         * device-registration logic.
+         */
+        @JavascriptInterface
+        public String getDeviceInfo() {
+            JSONObject o = new JSONObject();
+            try {
+                o.put("deviceId", getDeviceId());
+                o.put("model", safe(Build.MODEL));
+                o.put("manufacturer", safe(Build.MANUFACTURER));
+                o.put("device", safe(Build.DEVICE));
+                o.put("product", safe(Build.PRODUCT));
+                o.put("fireOs", isFireOs());
+                o.put("appVersion", BuildConfig.VERSION_NAME);
+            } catch (JSONException ignored) {
+                // A well-formed object can't actually throw here; return what we have.
+            }
+            return o.toString();
+        }
+
+        private String safe(String v) {
+            return v != null ? v : "";
+        }
     }
 
     /**

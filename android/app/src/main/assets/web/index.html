@@ -373,6 +373,12 @@
         localStorage.setItem(AOG_KEYS.token, json.data.accessToken);
         localStorage.setItem(AOG_KEYS.user, JSON.stringify(json.data.userData || {}));
 
+        // Register this physical kiosk with the API. Best-effort and fully
+        // decoupled from login: fire-and-forget, with its own catch, so nothing
+        // here — bridge, network, or API — can ever block or fail the sign-in.
+        // No-ops entirely in a normal browser (no native bridge).
+        try { Promise.resolve(authorizeDevice()).catch(function () {}); } catch (e) {}
+
         // Remember me — username only, never the password.
         if (remember.checked){
           localStorage.setItem(AOG_KEYS.remember, 'true');
