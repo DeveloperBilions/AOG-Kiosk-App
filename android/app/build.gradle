@@ -17,8 +17,8 @@ android {
         applicationId "com.thebilions.aogkiosk"
         minSdk 21          // Android 5.0 — covers virtually all Android TV boxes
         targetSdk 34
-        versionCode 3
-        versionName "1.2"
+        versionCode 4
+        versionName "1.3"
 
         // ---- Kiosk configuration (change here, rebuild) ----------------------
         // The hosted page the kiosk loads. Update content by editing the page in
