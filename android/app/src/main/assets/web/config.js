@@ -54,25 +54,41 @@
        device_name          <- "<model> · <short id>" (human-readable in a list)
        device_type          <- "kiosk" */
   w.authorizeDevice = async function () {
+    var L = '[AOGKiosk][authorize]';
+    console.log(L, 'start; bridge present =', !!w.AOGKiosk);
     const info = w.aogDeviceInfo();
-    if (!info || !info.deviceId) return false;          // not in the kiosk app
+    console.log(L, 'deviceInfo =', JSON.stringify(info));
+    if (!info || !info.deviceId) {
+      console.warn(L, 'ABORT: no bridge / empty deviceId');
+      return false;                                     // not in the kiosk app
+    }
     const token = localStorage.getItem(w.AOG_KEYS.token);
-    if (!token) return false;                            // no session yet
+    console.log(L, 'token present =', !!token);
+    if (!token) {
+      console.warn(L, 'ABORT: no token in localStorage[' + w.AOG_KEYS.token + ']');
+      return false;                                     // no session yet
+    }
     const shortId = info.deviceId.slice(-8);
     const model = info.model || 'Unknown';
+    const payload = {
+      device_type: 'kiosk',
+      device_name: model + ' · ' + shortId,
+      device_serial_number: info.deviceId,
+      model_name: model
+    };
+    console.log(L, 'POST', w.AOG_API + '/users/authorize-device', JSON.stringify(payload));
     try {
       const res = await w.authFetch('/users/authorize-device', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          device_type: 'kiosk',
-          device_name: model + ' · ' + shortId,
-          device_serial_number: info.deviceId,
-          model_name: model
-        })
+        body: JSON.stringify(payload)
       });
+      var bodyText = '';
+      try { bodyText = await res.clone().text(); } catch (e) {}
+      console.log(L, 'response', res.status, res.ok ? 'OK' : 'FAIL', bodyText);
       return res.ok;
     } catch (e) {
+      console.warn(L, 'ERROR (network / 401):', e && e.message);
       return false;   // network error / 401 already handled by authFetch
     }
   };
