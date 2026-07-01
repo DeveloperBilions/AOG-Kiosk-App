@@ -373,12 +373,6 @@
         localStorage.setItem(AOG_KEYS.token, json.data.accessToken);
         localStorage.setItem(AOG_KEYS.user, JSON.stringify(json.data.userData || {}));
 
-        // Register this physical kiosk with the API. Best-effort and fully
-        // decoupled from login: fire-and-forget, with its own catch, so nothing
-        // here — bridge, network, or API — can ever block or fail the sign-in.
-        // No-ops entirely in a normal browser (no native bridge).
-        try { Promise.resolve(authorizeDevice()).catch(function () {}); } catch (e) {}
-
         // Remember me — username only, never the password.
         if (remember.checked){
           localStorage.setItem(AOG_KEYS.remember, 'true');
@@ -387,6 +381,18 @@
           localStorage.removeItem(AOG_KEYS.remember);
           localStorage.removeItem(AOG_KEYS.accounts);
         }
+
+        // Register this physical kiosk with the API BEFORE navigating away.
+        // Previously this was fire-and-forget immediately before the redirect,
+        // so the navigation to kiosk.html aborted the in-flight POST — it never
+        // reached the server (yet worked in Postman, where nothing navigates).
+        // We now await it, bounded by a timeout so login can never hang, and
+        // only then redirect. No-ops in a plain browser (no native bridge).
+        try {
+          const authP = Promise.resolve(authorizeDevice());
+          const timeout = new Promise(function (r) { setTimeout(function () { r('timeout'); }, 5000); });
+          await Promise.race([authP, timeout]).catch(function () {});
+        } catch (e) { /* never block login on registration */ }
 
         window.location.href = 'kiosk.html';
       } catch (err) {
