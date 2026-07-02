@@ -219,6 +219,17 @@ public class KioskActivity extends AppCompatActivity {
         }
 
         /**
+         * True only in a debug build ({@code BuildConfig.DEBUG}). The hosted page
+         * uses this to decide whether to show the on-screen device-registration
+         * diagnostic — so a sideloaded DEBUG APK reveals it, while the signed
+         * release APK (and any plain browser, which has no bridge) never does.
+         */
+        @JavascriptInterface
+        public boolean isDiagnostic() {
+            return BuildConfig.DEBUG;
+        }
+
+        /**
          * Everything above plus a couple of extras, as a JSON string the page
          * can {@code JSON.parse()}. Single call = one round-trip for the page's
          * device-registration logic.

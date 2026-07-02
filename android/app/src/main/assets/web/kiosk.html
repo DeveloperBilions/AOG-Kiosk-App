@@ -417,10 +417,15 @@
       try {
         if (typeof authorizeDevice !== 'function') return;   // stale config.js
         const DONE_KEY = 'aog_device_registered';
-        // Optional on-screen diagnostic: append ?diag=1 to the kiosk URL to see
-        // the registration result on the TV (no ADB / console needed). Invisible
-        // in normal operation.
-        const showDiag = /[?&]diag=1/.test(location.search);
+        // On-screen registration diagnostic. Shown when EITHER:
+        //  - the native bridge reports a DEBUG build (AOGKiosk.isDiagnostic()), so
+        //    a sideloaded debug APK reveals it while the signed release never does;
+        //  - or the URL carries ?diag=1 (handy for browser testing).
+        // A production release APK and a plain browser both stay silent, so
+        // existing installs are visually unaffected.
+        var isDebugApk = false;
+        try { isDebugApk = !!(window.AOGKiosk && AOGKiosk.isDiagnostic && AOGKiosk.isDiagnostic()); } catch (e) {}
+        const showDiag = isDebugApk || /[?&]diag=1/.test(location.search);
         function paintDiag(msg){
           if (!showDiag) return;
           var el = document.getElementById('aogDiag');
