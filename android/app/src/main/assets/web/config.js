@@ -85,8 +85,13 @@
     }
     const shortId = info.deviceId.slice(-8);
     const model = info.model || 'Unknown';
+    // The API rejects 'kiosk' — it only accepts: mobile, tablet, desktop,
+    // web_browser, tv. Use the class the native bridge detected (tv/tablet/
+    // mobile), all of which are valid; fall back to 'mobile' for anything else.
+    const ALLOWED = { tv: 'tv', tablet: 'tablet', mobile: 'mobile' };
+    const detected = (info.deviceType || '').toLowerCase();
     const payload = {
-      device_type: 'kiosk',
+      device_type: ALLOWED[detected] || 'mobile',
       device_name: model + ' · ' + shortId,
       device_serial_number: info.deviceId,
       model_name: model
