@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260704"></script>
+<script src="config.js?v=20260705"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -406,22 +406,25 @@
       if (name) storeNm.innerHTML = 'Agent <span>' + name + '</span>';
     } catch(e){ /* ignore */ }
 
-    // Register this physical device with the API. Done HERE (kiosk load) rather
-    // than only at login, because this page loads on every startup, resume, and
-    // 15-min auto-refresh — so registration self-heals and reaches devices that
-    // are ALREADY logged in, with no reinstall. authorizeDevice() no-ops in a
-    // plain browser and swallows all errors, so it can't affect the QR flow.
-    // It records success in localStorage so we don't re-POST every refresh, but
-    // always retries if it hasn't succeeded yet for this device.
+    // Register + periodically check in this physical device with the API. Done
+    // HERE (kiosk load) rather than only at login, because this page loads on
+    // every startup, resume, and 15-min auto-refresh — so it self-heals and
+    // reaches devices that are ALREADY logged in, with no reinstall.
+    //
+    // It re-POSTs at most once per 24h (throttled via a timestamp) so the server
+    // can refresh the IP-derived location and last-seen for a device that's
+    // already registered, WITHOUT hammering the API on every 15-min refresh.
+    // authorizeDevice() no-ops in a plain browser and swallows all errors, so it
+    // can never affect the QR flow.
     (function registerDevice(){
       try {
         if (typeof authorizeDevice !== 'function') return;   // stale config.js
-        const DONE_KEY = 'aog_device_registered';
-        // On-screen registration diagnostic. Shown when EITHER:
-        //  - the native bridge reports a DEBUG build (AOGKiosk.isDiagnostic()), so
-        //    a sideloaded debug APK reveals it while the signed release never does;
-        //  - or the URL carries ?diag=1 (handy for browser testing).
-        // A production release APK and a plain browser both stay silent, so
+        const AT_KEY = 'aog_device_checkin_at';   // ms timestamp of last success
+        const CHECKIN_MS = 24 * 60 * 60 * 1000;   // re-send at most once per day
+
+        // On-screen diagnostic. Shown when EITHER the native bridge reports a
+        // DEBUG build (AOGKiosk.isDiagnostic()) or the URL carries ?diag=1. A
+        // production release APK and a plain browser both stay silent, so
         // existing installs are visually unaffected.
         var isDebugApk = false;
         try { isDebugApk = !!(window.AOGKiosk && AOGKiosk.isDiagnostic && AOGKiosk.isDiagnostic()); } catch (e) {}
@@ -440,11 +443,17 @@
           }
           el.textContent = 'DEVICE REG: ' + msg;
         }
-        if (localStorage.getItem(DONE_KEY) === '1') { paintDiag('already registered'); return; }
+
+        // Throttle: skip if we successfully checked in within the last 24h.
+        var lastAt = 0;
+        try { lastAt = parseInt(localStorage.getItem(AT_KEY) || '0', 10) || 0; } catch (e) {}
+        var due = (Date.now() - lastAt) >= CHECKIN_MS;
+        if (!due) { paintDiag('checked in recently'); return; }
+
         paintDiag('registering…');
         Promise.resolve(authorizeDevice()).then(function (r) {
           if (r === true || (r && r.ok)) {
-            try { localStorage.setItem(DONE_KEY, '1'); } catch(e){}
+            try { localStorage.setItem(AT_KEY, String(Date.now())); } catch(e){}
             paintDiag('OK');
           } else {
             var d = '';
