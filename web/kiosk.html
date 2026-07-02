@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260705"></script>
+<script src="config.js?v=20260706"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -68,6 +68,17 @@
   .scene{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
     padding:calc(54 * var(--u)) calc(60 * var(--u));opacity:0;transform:scale(1.04);transition:opacity .9s ease, transform 6s ease;}
   .scene.on{opacity:1;transform:scale(1)}
+  /* Media scenes: full-bleed promotional image/video filling the panel. */
+  .scene.media{padding:0;transform:none}
+  .scene.media.on{transform:none}
+  /* contain = show the WHOLE image/video (no cropping); the leftover space when
+     the media's aspect ratio differs from the panel is filled with the kiosk's
+     brand gradient (matching .promo) so it blends in rather than showing bars. */
+  .scene.media{background:
+     radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
+     linear-gradient(160deg,#0c0e07,#000);}
+  .scene.media img,.scene.media video{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
   .kicker{font-size:calc(13 * var(--u));letter-spacing:5px;text-transform:uppercase;color:var(--lime);margin-bottom:calc(14 * var(--u))}
   .head{font-family:'Anton';font-size:calc(74 * var(--u));line-height:.94;color:#fff;letter-spacing:.5px;max-width:calc(620 * var(--u))}
   .head em{font-style:normal;color:var(--lime);text-shadow:0 0 28px rgba(165,255,8,.45)}
@@ -270,41 +281,27 @@
     <div class="promo" id="promo">
       <div class="coins" id="coins"></div>
 
-      <div class="scene on">
-        <div class="kicker">Free To Play</div>
-        <div class="head">PLAY THE<br><em>HOTTEST GAMES</em><br>ON US.</div>
-        <div class="sub">Get Gold Coins to play plus free Sweepstakes Coins the moment you join. No purchase necessary.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">🎰</div></div>
-          <div class="tile"><div class="ic">🐟</div></div>
-          <div class="tile"><div class="ic">⚡</div></div>
-        </div>
+      <!-- Media promo carousel: the video plays full-length once per cycle,
+           then the 5 images rotate. Scenes are declared here; the rotation JS
+           advances them and drives the matching progress ticks. The video scene
+           is marked data-video so the loop can wait for it to finish. -->
+      <div class="scene media on" data-video="1">
+        <video id="promoVideo" muted playsinline preload="auto"
+               poster="Image%201.webp">
+          <source src="Marketing%2BVideo.webm" type="video/webm" />
+        </video>
       </div>
-
-      <div class="scene">
-        <div class="kicker">Daily Rewards</div>
-        <div class="head">LOG IN<br>EVERY DAY.<br><em>STACK COINS.</em></div>
-        <div class="sub">Daily login bonuses, drops and challenges — fresh rewards waiting each time you come back.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">🪙</div></div>
-          <div class="tile"><div class="ic">🎁</div></div>
-          <div class="tile"><div class="ic">🔥</div></div>
-        </div>
-      </div>
-
-      <div class="scene">
-        <div class="kicker">Redeem</div>
-        <div class="head">TURN COINS<br>INTO<br><em>REAL REWARDS.</em></div>
-        <div class="sub">Collect Sweepstakes Coins as you play and redeem them for cash prizes. Fast, secure payouts.</div>
-        <div class="tiles">
-          <div class="tile"><div class="ic">💸</div></div>
-          <div class="tile"><div class="ic">🏆</div></div>
-          <div class="tile"><div class="ic">✨</div></div>
-        </div>
-      </div>
+      <div class="scene media"><img src="Image%201.webp" alt="" /></div>
+      <div class="scene media"><img src="Image%202.webp" alt="" /></div>
+      <div class="scene media"><img src="Image%203.webp" alt="" /></div>
+      <div class="scene media"><img src="Image%204.webp" alt="" /></div>
+      <div class="scene media"><img src="Image%205.webp" alt="" /></div>
 
       <div class="ticks">
         <div class="tk active"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
         <div class="tk"><i></i></div>
         <div class="tk"><i></i></div>
       </div>
@@ -335,7 +332,7 @@
 
       <div class="store">
         <div class="lbl">You're joining via</div>
-        <div class="nm" id="storeName">AOG <span>Agent</span></div>
+        <div class="nm" id="storeName">AOG <span>Creator</span></div>
       </div>
     </div>
 
@@ -361,18 +358,50 @@
   addEventListener('orientationchange',fit);
   fit();
 
-  /* ---- promo loop ---- */
+  /* ---- promo loop ----
+     Rotates the media scenes. Image scenes show for IMG_MS; the video scene
+     plays full-length once per cycle and the loop waits for it to finish (or a
+     safety cap) before advancing. Robust to autoplay being blocked and to the
+     video failing to load — it just falls back to a timed advance so the
+     carousel never stalls. */
   const scenes=[...document.querySelectorAll('.scene')];
   const ticks=[...document.querySelectorAll('.tk')];
-  let i=0;
-  setInterval(()=>{
-    scenes[i].classList.remove('on');
-    ticks[i].classList.remove('active');
-    i=(i+1)%scenes.length;
-    scenes[i].classList.add('on');
-    void ticks[i].querySelector('i').offsetWidth;
-    ticks[i].classList.add('active');
-  },6000);
+  const promoVideo=document.getElementById('promoVideo');
+  const IMG_MS=6000;          // each image dwell time
+  const VIDEO_CAP_MS=90000;   // safety cap if 'ended' never fires
+  let i=0, advanceTimer=null;
+
+  function setTick(idx){
+    ticks.forEach((t,n)=>t.classList.toggle('active', n===idx));
+    if(ticks[idx]){ void ticks[idx].querySelector('i').offsetWidth; ticks[idx].classList.add('active'); }
+  }
+
+  function show(idx){
+    clearTimeout(advanceTimer);
+    scenes.forEach((s,n)=>s.classList.toggle('on', n===idx));
+    setTick(idx);
+    i=idx;
+    const isVideo = scenes[idx].getAttribute('data-video')==='1' && promoVideo;
+    if(isVideo){
+      let advanced=false;
+      const go=()=>{ if(advanced) return; advanced=true; next(); };
+      // Restart the clip from the top and play it through once.
+      try{
+        promoVideo.currentTime=0;
+        promoVideo.onended=go;
+        const p=promoVideo.play();
+        if(p&&p.catch) p.catch(()=>{ /* autoplay blocked -> timed fallback */ advanceTimer=setTimeout(go,IMG_MS); });
+      }catch(e){ advanceTimer=setTimeout(go,IMG_MS); }
+      // Safety cap so a stuck/errored video can't freeze the carousel.
+      advanceTimer=setTimeout(go,VIDEO_CAP_MS);
+    } else {
+      advanceTimer=setTimeout(next,IMG_MS);
+    }
+  }
+  function next(){ show((i+1)%scenes.length); }
+
+  // Kick off the loop on the initial (video) scene.
+  show(0);
 
   /* ---- floating coins ---- */
   const cw=document.getElementById('coins');
@@ -403,7 +432,7 @@
     try {
       const u = JSON.parse(localStorage.getItem(AOG_KEYS.user) || '{}');
       const name = [u.firstname, u.lastname].filter(Boolean).join(' ').trim();
-      if (name) storeNm.innerHTML = 'Agent <span>' + name + '</span>';
+      if (name) storeNm.innerHTML = 'Creator <span>' + name + '</span>';
     } catch(e){ /* ignore */ }
 
     // Register + periodically check in this physical device with the API. Done
