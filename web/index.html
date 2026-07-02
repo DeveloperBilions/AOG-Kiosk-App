@@ -7,7 +7,7 @@
 <!-- Cache-bust config.js: GitHub Pages + the kiosk WebView cache sub-resources
      for ~10 min, so a plain <script src="config.js"> can run a stale copy long
      after a deploy. Bump ?v= whenever config.js changes to force a fresh fetch. -->
-<script src="config.js?v=20260703"></script>
+<script src="config.js?v=20260704"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&display=swap');
 
@@ -310,6 +310,23 @@
       icon.innerHTML = show ? eyeOff : eye;
       btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
     });
+  })();
+
+  /* ---- already signed in? go straight to the kiosk ----
+     The APK loads this login page (KIOSK_URL = site root) on every launch and
+     15-min refresh. Without this, a device that's already logged in just sits on
+     the login screen forever and never reaches kiosk.html — so the kiosk-load
+     device registration (and the live QR) never run again. Forwarding when a
+     token exists fixes that AND resumes the kiosk after a reboot.
+     Loop-safe: on an expired token kiosk.html's authFetch clears it before
+     bouncing back here, so the next load has no token and won't re-forward. */
+  (function(){
+    try {
+      if (localStorage.getItem(AOG_KEYS.token)) {
+        location.replace('kiosk.html');
+        return;
+      }
+    } catch (e) { /* storage unavailable — fall through to the login form */ }
   })();
 
   /* ---- remember me prefill ---- */
