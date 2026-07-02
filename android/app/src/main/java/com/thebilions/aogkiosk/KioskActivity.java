@@ -89,8 +89,14 @@ public class KioskActivity extends AppCompatActivity {
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
         s.setMediaPlaybackRequiresUserGesture(false);
-        // Prefer fresh content from the network; assets are the offline fallback.
-        s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Always fetch the hosted page from the network so content/config edits
+        // propagate on the next refresh instead of being served stale from the
+        // WebView's HTTP cache (GitHub Pages sends max-age=600, which otherwise
+        // delays updates by up to 10 min per resource). If the network is down,
+        // onReceivedError() swaps in the bundled offline copy, so LOAD_NO_CACHE
+        // does not break offline use. Static assets re-download each load, but
+        // they're small — a worthwhile trade for reliable over-the-air updates.
+        s.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         // ---- Fire TV / older-WebView compatibility ---------------------------
         // Fire OS ships an older Chromium than stock Android TV. These settings
