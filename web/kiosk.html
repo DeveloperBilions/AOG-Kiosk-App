@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260701"></script>
+<script src="config.js?v=20260702"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -405,6 +405,50 @@
       const name = [u.firstname, u.lastname].filter(Boolean).join(' ').trim();
       if (name) storeNm.innerHTML = 'Agent <span>' + name + '</span>';
     } catch(e){ /* ignore */ }
+
+    // Register this physical device with the API. Done HERE (kiosk load) rather
+    // than only at login, because this page loads on every startup, resume, and
+    // 15-min auto-refresh — so registration self-heals and reaches devices that
+    // are ALREADY logged in, with no reinstall. authorizeDevice() no-ops in a
+    // plain browser and swallows all errors, so it can't affect the QR flow.
+    // It records success in localStorage so we don't re-POST every refresh, but
+    // always retries if it hasn't succeeded yet for this device.
+    (function registerDevice(){
+      try {
+        if (typeof authorizeDevice !== 'function') return;   // stale config.js
+        const DONE_KEY = 'aog_device_registered';
+        // Optional on-screen diagnostic: append ?diag=1 to the kiosk URL to see
+        // the registration result on the TV (no ADB / console needed). Invisible
+        // in normal operation.
+        const showDiag = /[?&]diag=1/.test(location.search);
+        function paintDiag(msg){
+          if (!showDiag) return;
+          var el = document.getElementById('aogDiag');
+          if (!el) {
+            el = document.createElement('div');
+            el.id = 'aogDiag';
+            el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;'
+              + 'max-width:90vw;font:12px/1.4 monospace;color:#A5FF08;'
+              + 'background:rgba(0,0,0,.85);padding:8px 10px;border:1px solid #A5FF08;'
+              + 'border-radius:6px;white-space:pre-wrap;word-break:break-all';
+            document.body.appendChild(el);
+          }
+          el.textContent = 'DEVICE REG: ' + msg;
+        }
+        if (localStorage.getItem(DONE_KEY) === '1') { paintDiag('already registered'); return; }
+        paintDiag('registering…');
+        Promise.resolve(authorizeDevice()).then(function (r) {
+          if (r === true || (r && r.ok)) {
+            try { localStorage.setItem(DONE_KEY, '1'); } catch(e){}
+            paintDiag('OK');
+          } else {
+            var d = '';
+            try { d = localStorage.getItem(AOG_DIAG_KEY) || ''; } catch(e){}
+            paintDiag('FAILED — ' + d);
+          }
+        }).catch(function(e){ paintDiag('EXCEPTION — ' + (e && e.message)); });
+      } catch (e) { /* never let registration affect the kiosk */ }
+    })();
 
     function pickActive(tokens){
       const active = (tokens || []).filter(t => t && t.status === 'active');

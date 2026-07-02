@@ -53,19 +53,34 @@
        model_name           <- Build.MODEL
        device_name          <- "<model> · <short id>" (human-readable in a list)
        device_type          <- "kiosk" */
+  /* Record the last registration attempt so it can be read back WITHOUT a
+     JS console — the v1.3 WebView doesn't route console.log to logcat. Writes
+     to localStorage['aog_device_diag'] and also console.log (for chrome://inspect
+     and future builds that route console). Read it on-device via ADB:
+       adb shell run-as com.thebilions.aogkiosk cat \
+         /data/data/com.thebilions.aogkiosk/app_webview/Default/Local\ Storage/...
+     or expose it on screen from the page during debugging. */
+  w.AOG_DIAG_KEY = 'aog_device_diag';
+  function diag(step, extra) {
+    var line = '[AOGKiosk][authorize] ' + step + (extra != null ? ' ' + extra : '');
+    try { console.log(line); } catch (e) {}
+    try {
+      localStorage.setItem(w.AOG_DIAG_KEY,
+        JSON.stringify({ step: step, extra: extra == null ? '' : String(extra) }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
   w.authorizeDevice = async function () {
-    var L = '[AOGKiosk][authorize]';
-    console.log(L, 'start; bridge present =', !!w.AOGKiosk);
+    diag('start; bridge=' + !!w.AOGKiosk);
     const info = w.aogDeviceInfo();
-    console.log(L, 'deviceInfo =', JSON.stringify(info));
+    diag('deviceInfo', JSON.stringify(info));
     if (!info || !info.deviceId) {
-      console.warn(L, 'ABORT: no bridge / empty deviceId');
+      diag('ABORT: no bridge / empty deviceId');
       return false;                                     // not in the kiosk app
     }
     const token = localStorage.getItem(w.AOG_KEYS.token);
-    console.log(L, 'token present =', !!token);
     if (!token) {
-      console.warn(L, 'ABORT: no token in localStorage[' + w.AOG_KEYS.token + ']');
+      diag('ABORT: no token');
       return false;                                     // no session yet
     }
     const shortId = info.deviceId.slice(-8);
@@ -76,7 +91,7 @@
       device_serial_number: info.deviceId,
       model_name: model
     };
-    console.log(L, 'POST', w.AOG_API + '/users/authorize-device', JSON.stringify(payload));
+    diag('POST', JSON.stringify(payload));
     try {
       const res = await w.authFetch('/users/authorize-device', {
         method: 'POST',
@@ -85,10 +100,10 @@
       });
       var bodyText = '';
       try { bodyText = await res.clone().text(); } catch (e) {}
-      console.log(L, 'response', res.status, res.ok ? 'OK' : 'FAIL', bodyText);
+      diag('response ' + res.status + (res.ok ? ' OK' : ' FAIL'), bodyText);
       return res.ok;
     } catch (e) {
-      console.warn(L, 'ERROR (network / 401):', e && e.message);
+      diag('ERROR (network / 401)', e && e.message);
       return false;   // network error / 401 already handled by authFetch
     }
   };
