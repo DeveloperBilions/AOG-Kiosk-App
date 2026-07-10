@@ -7,25 +7,92 @@
   // localStorage keys
   w.AOG_KEYS = {
     token: 'aog_token',      // JWT access token from login
+    refresh: 'aog_refresh',  // refresh token from login (when the API returns one)
     user: 'aog_user',        // JSON of userData (id, member_id, firstname, ...)
     remember: 'rememberMe',  // 'true' when Remember me was checked
     accounts: 'accounts'     // [{ user }] — remembered usernames (no passwords)
   };
 
-  /* fetch() wrapper that attaches the Bearer token. On 401 (expired/invalid
-     token) it clears the session and sends the user back to the login screen,
-     then rejects so callers stop. */
+  /* Drop every session key (used on logout and on an unrecoverable 401). */
+  w.clearSession = function () {
+    try {
+      localStorage.removeItem(w.AOG_KEYS.token);
+      localStorage.removeItem(w.AOG_KEYS.refresh);
+      localStorage.removeItem(w.AOG_KEYS.user);
+    } catch (e) { /* storage unavailable */ }
+  };
+
+  /* Exchange the stored refresh token for a fresh access token via
+     POST /users/refresh-token, so a long-running kiosk survives access-token
+     expiry without anyone re-typing credentials. Single-flight: concurrent
+     401s (QR poll + device check-in) share one refresh attempt. Resolves true
+     when a new access token was stored, false otherwise (no refresh token
+     saved, endpoint rejected it, or network error) — callers then fall back
+     to the old clear-session-and-relogin behaviour, so a device that logged
+     in before refresh tokens were stored behaves exactly as it does today. */
+  var refreshInFlight = null;
+  function refreshSession() {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = (async function () {
+      var rt = null, at = null;
+      try {
+        rt = localStorage.getItem(w.AOG_KEYS.refresh);
+        at = localStorage.getItem(w.AOG_KEYS.token);
+      } catch (e) { /* storage unavailable */ }
+      if (!rt) return false;
+      // The endpoint requires a Bearer header; the contract doesn't document
+      // whether it wants the refresh token or the (expired) access token
+      // there, so try the refresh token first, then the access token. The
+      // refresh token also rides in the body for APIs that read it there.
+      var bearers = at && at !== rt ? [rt, at] : [rt];
+      for (var i = 0; i < bearers.length; i++) {
+        try {
+          var res = await fetch(w.AOG_API + '/users/refresh-token', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json',
+                       Authorization: 'Bearer ' + bearers[i] },
+            body: JSON.stringify({ refreshToken: rt })
+          });
+          var json = await res.json().catch(function () { return {}; });
+          var d = (json && json.data) || {};
+          var newTok = d.accessToken || d.access_token || d.token;
+          if (res.ok && newTok) {
+            try {
+              localStorage.setItem(w.AOG_KEYS.token, newTok);
+              var newRt = d.refreshToken || d.refresh_token;
+              if (newRt) localStorage.setItem(w.AOG_KEYS.refresh, newRt);
+            } catch (e) { /* storage unavailable */ }
+            return true;
+          }
+        } catch (e) { /* network error — try next bearer / give up */ }
+      }
+      return false;
+    })().then(
+      function (ok) { refreshInFlight = null; return ok; },
+      function ()   { refreshInFlight = null; return false; }
+    );
+    return refreshInFlight;
+  }
+
+  /* fetch() wrapper that attaches the Bearer token. On 401 it first tries to
+     refresh the session silently and retries the request once; only if that
+     fails does it clear the session and send the user back to the login
+     screen, then reject so callers stop. */
   w.authFetch = async function (path, opts) {
     opts = opts || {};
-    const token = localStorage.getItem(w.AOG_KEYS.token);
-    const headers = Object.assign({}, opts.headers, token ? { Authorization: 'Bearer ' + token } : {});
-    // no-store so a kiosk WebView never serves a stale referral QR / token list.
-    const res = await fetch(w.AOG_API + path, Object.assign({ cache: 'no-store' }, opts, { headers }));
+    async function doFetch() {
+      const token = localStorage.getItem(w.AOG_KEYS.token);
+      const headers = Object.assign({}, opts.headers, token ? { Authorization: 'Bearer ' + token } : {});
+      // no-store so a kiosk WebView never serves a stale referral QR / token list.
+      return fetch(w.AOG_API + path, Object.assign({ cache: 'no-store' }, opts, { headers }));
+    }
+    let res = await doFetch();
+    if (res.status === 401 && await refreshSession()) {
+      res = await doFetch();
+    }
     if (res.status === 401) {
-      try {
-        localStorage.removeItem(w.AOG_KEYS.token);
-        localStorage.removeItem(w.AOG_KEYS.user);
-      } catch (e) { /* storage unavailable */ }
+      w.clearSession();
       if (!/index\.html$|\/$/.test(location.pathname)) location.href = 'index.html';
       throw new Error('Unauthorized');
     }
