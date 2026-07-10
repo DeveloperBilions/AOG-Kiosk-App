@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260710"></script>
+<script src="config.js?v=20260710b"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -427,6 +427,13 @@
     // No session -> back to login (typed-login flow).
     const token = (function(){ try { return localStorage.getItem(AOG_KEYS.token); } catch(e){ return null; } })();
     if (!token) { location.href = 'index.html'; return; }
+
+    // Devices that signed in before refresh tokens were stored hold only an
+    // access token; mint and store a refresh token from it while it's still
+    // valid, so the whole fleet migrates to stay-signed-in with no re-login.
+    // Fire-and-forget: it no-ops once migrated, when the API declines, or on
+    // a stale cached config.js that doesn't define it yet.
+    try { if (typeof ensureRefreshToken === 'function') ensureRefreshToken(); } catch (e) {}
 
     // Show the signed-in agent's name in the "joining via" panel.
     try {

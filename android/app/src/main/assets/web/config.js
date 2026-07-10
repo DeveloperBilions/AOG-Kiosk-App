@@ -75,6 +75,41 @@
     return refreshInFlight;
   }
 
+  /* One-time migration for sessions created BEFORE refresh tokens were
+     stored: while the current access token is still valid, ask the API for a
+     fresh token pair and store the refresh token, so an already-signed-in
+     device never has to see the login screen again. No-ops when a refresh
+     token is already stored, when signed out, or when the endpoint declines —
+     safe to fire-and-forget on every kiosk load. Uses raw fetch (not
+     authFetch) so a rejection here can never trigger the logout path. */
+  w.ensureRefreshToken = async function () {
+    var at = null, rt = null;
+    try {
+      at = localStorage.getItem(w.AOG_KEYS.token);
+      rt = localStorage.getItem(w.AOG_KEYS.refresh);
+    } catch (e) { return false; }
+    if (!at || rt) return false;
+    try {
+      var res = await fetch(w.AOG_API + '/users/refresh-token', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: 'Bearer ' + at },
+        body: JSON.stringify({})
+      });
+      var json = await res.json().catch(function () { return {}; });
+      var d = (json && json.data) || {};
+      var newAt = d.accessToken || d.access_token || d.token;
+      var newRt = d.refreshToken || d.refresh_token;
+      if (!res.ok || !newRt) return false;
+      try {
+        localStorage.setItem(w.AOG_KEYS.refresh, newRt);
+        if (newAt) localStorage.setItem(w.AOG_KEYS.token, newAt);
+      } catch (e) { /* storage unavailable */ }
+      return true;
+    } catch (e) { return false; }
+  };
+
   /* fetch() wrapper that attaches the Bearer token. On 401 it first tries to
      refresh the session silently and retries the request once; only if that
      fails does it clear the session and send the user back to the login
