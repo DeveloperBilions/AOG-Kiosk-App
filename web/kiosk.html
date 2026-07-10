@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260706"></script>
+<script src="config.js?v=20260710"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -551,11 +551,17 @@
     setInterval(loadQR, 10 * 60 * 1000);
     addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });
 
-    // Logout — clear the session and return to the login screen.
+    // Logout — clear the session (access + refresh token) and return to the
+    // login screen. Falls back to removing the keys directly if a stale
+    // cached config.js doesn't define clearSession yet.
     document.getElementById('logout').addEventListener('click', () => {
       try {
-        localStorage.removeItem(AOG_KEYS.token);
-        localStorage.removeItem(AOG_KEYS.user);
+        if (typeof clearSession === 'function') {
+          clearSession();
+        } else {
+          localStorage.removeItem(AOG_KEYS.token);
+          localStorage.removeItem(AOG_KEYS.user);
+        }
       } catch (e) { /* storage unavailable */ }
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       location.href = 'index.html';
