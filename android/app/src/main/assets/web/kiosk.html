@@ -124,8 +124,12 @@
     background:#fff;display:grid;place-items:center;
     box-shadow:0 0 0 2px var(--lime), 0 0 40px rgba(165,255,8,.35);overflow:hidden}
   #qr{width:86%;height:86%;object-fit:contain}
-  #qr{transition:opacity .35s}
+  #qr{transition:opacity .35s,filter .35s}
   #qr.flip{opacity:.15}
+  /* Until a LIVE QR has loaded, the bundled placeholder is blurred beyond
+     scannability — it's a leftover dev-environment code, and a wrong-but-
+     scannable QR is worse than none (players land on a dead signup page). */
+  #qr.pending{filter:blur(14px);opacity:.3}
   .scanline{position:absolute;left:8px;right:8px;height:34px;border-radius:8px;
     background:linear-gradient(180deg,rgba(165,255,8,0),rgba(165,255,8,.35),rgba(165,255,8,0));
     animation:scan 2.6s ease-in-out infinite;pointer-events:none}
@@ -315,7 +319,7 @@
       <div class="qrbox">
         <div class="corner c1"></div><div class="corner c2"></div>
         <div class="corner c3"></div><div class="corner c4"></div>
-        <img id="qr" src="QR.png" alt="Scan to join" width="204" height="204" />
+        <img id="qr" class="pending" src="QR.png" alt="Scan to join" width="204" height="204" />
         <div class="scanline"></div>
       </div>
 
@@ -414,10 +418,11 @@
   }
 
   /* ---- live referral QR ----
-     Requires a session from the login screen. Fetch the agent's referral
-     tokens, pick the freshest active one, then load its QR image WITH the
-     Bearer header (an <img src> can't send headers, so we fetch -> blob URL).
-     On any failure we keep the bundled QR.png so the kiosk still shows code. */
+     Requires a session from the login screen. Ask the API for the account's
+     referral link (/my-link auto-creates one if needed), then load its QR
+     image WITH the Bearer header (an <img src> can't send headers, so we
+     fetch -> blob URL). Until a live QR loads, the bundled QR.png placeholder
+     stays blurred (see #qr.pending) so it can never be scanned. */
   (function(){
     const qrImg    = document.getElementById('qr');
     const tokenTxt = document.getElementById('tokenText');
@@ -500,21 +505,22 @@
       } catch (e) { /* never let registration affect the kiosk */ }
     })();
 
-    function pickActive(tokens){
-      const active = (tokens || []).filter(t => t && t.status === 'active');
-      // my-tokens returns freshest first; keep that order.
-      return active[0] || (tokens && tokens[0]) || null;
-    }
-
     let loaded = false;         // true once a LIVE QR is on screen
     let retryTimer = null;
 
     // Fetch the live QR once. Returns true on success, false on a (retryable)
     // failure. Throws only via authFetch's 401 redirect (which leaves the page).
+    // Uses /referral/my-link: one call that always yields a usable link — the
+    // backend returns the newest active link and auto-creates one (store-type
+    // accounts: rotating 7-day store link; standard: 30-day link) when the
+    // account has none. That replaces the old read-only /my-tokens flow, where
+    // an account with no/expired links (the sub-creator case) could never get
+    // a live QR. Fetched fresh on every load + 10-min refresh — never cached,
+    // since store links rotate weekly.
     async function fetchQR(){
-      const res = await authFetch('/referral/my-tokens');   // 401 -> redirects away
+      const res = await authFetch('/referral/my-link');   // 401 -> redirects away
       const json = await res.json().catch(() => ({}));
-      const tok = json && json.data ? pickActive(json.data.tokens) : null;
+      const tok = res.ok && json && json.data && json.data.token ? json.data : null;
       if (!tok) { tokenTxt.textContent = 'no active referral link'; return false; }
 
       // Build the path relative to AOG_API. (tok.qrEndpoint is "/api/referral/…",
@@ -527,6 +533,7 @@
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       blobUrl = URL.createObjectURL(blob);
       qrImg.src = blobUrl;
+      qrImg.classList.remove('pending');   // live QR on screen — unblur
       loaded = true;
       tokenTxt.textContent = 'secure code · scan to sign up';
       return true;
