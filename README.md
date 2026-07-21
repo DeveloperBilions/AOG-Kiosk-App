@@ -36,6 +36,29 @@ You build & sideload the APK **once per TV**. After that, content is pure web ed
 | `android/` | Android TV WebView app (Gradle project) |
 | `android/app/src/main/assets/web/` | Offline fallback copy of the page (kept in sync) |
 | `android/tools/sync-web-assets.sh` | Copies `web/` → app assets before a rebuild |
+| `web/auto/` | **Second, separate weblink**: auto sign-in from the link itself (below) |
+
+## The auto-link (second weblink, no login screen)
+
+`web/auto/` is a self-contained second solution that skips the typed login:
+the link carries base64 credentials and lands straight on the QR kiosk.
+
+```
+https://developerbilions.github.io/AOG-Kiosk-App/auto/?c=BASE64
+https://developerbilions.github.io/AOG-Kiosk-App/auto/#c=BASE64   (preferred*)
+```
+
+- `BASE64` = `base64("username:password")` — generate with
+  `echo -n 'username:password' | base64`. URL-safe base64 also accepted.
+- *The `#c=` form is preferred: a URL fragment is never sent over the network,
+  so the credentials can't end up in any server/CDN access log. `?c=` works too.
+- Fully separate from the classic flow: own pages (`auto/index.html`,
+  `auto/kiosk.html`), own `auto/config.js`, own localStorage keys
+  (`aog_auto_*`) — signing in/out on one never affects the other. Only the
+  promo media files (`web/*.webp`, `*.webm`) are shared, so content updates
+  reach both.
+- **The link IS the password** (base64 is encoding, not encryption). Share it
+  like a credential; rotate the account password to revoke a leaked link.
 
 ## Updating the kiosk content (the everyday workflow)
 

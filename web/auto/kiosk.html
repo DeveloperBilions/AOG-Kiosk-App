@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AOG — Store Mode Kiosk</title>
+<meta name="robots" content="noindex, nofollow" />
+<!-- AUTO-LINK solution: loads auto/config.js (AUTO_KEYS/autoFetch), NOT the
+     classic ../config.js — the two flows stay fully separate. Promo media is
+     referenced from ../ so both solutions always show the same content.
+     Keep this ?v= in sync with auto/index.html. -->
+<script src="config.js?v=20260721a"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root{
+    --lime:#A5FF08;
+    --lime-dim:#7db300;
+    --ink:#000000;
+    --panel:#0a0b08;
+    --panel2:#111309;
+    --line:rgba(165,255,8,.16);
+    --txt:#e9ffce;
+    --mut:#6f7a55;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;overflow:hidden;font-family:'Chakra Petch',sans-serif}
+
+  /* Fluid 16:9-derived layout — see the classic kiosk.html for the full
+     rationale; the layout CSS is identical in both solutions. */
+  :root{ --u: calc(100vh / 720); }
+
+  .wrap{position:fixed;inset:0;background:
+     radial-gradient(120% 80% at 80% -10%, rgba(165,255,8,.10), transparent 60%),
+     #000;}
+  .stage{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    background:var(--ink);
+    overflow:hidden;
+    display:grid;
+    grid-template-columns:1fr calc(430 * var(--u));
+    grid-template-rows:calc(64 * var(--u)) 1fr calc(40 * var(--u));
+  }
+
+  /* ---------- HEADER ---------- */
+  .bar{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;
+    padding:0 calc(26 * var(--u));border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,rgba(165,255,8,.06),transparent);}
+  .brand{display:flex;align-items:center;gap:calc(12 * var(--u))}
+  .logo{font-family:'Anton';font-size:calc(30 * var(--u));letter-spacing:1px;color:var(--lime);
+    text-shadow:0 0 22px rgba(165,255,8,.5);line-height:1}
+  .logo span{color:#fff}
+  .tag{font-size:calc(11 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:3px}
+  .live{display:flex;align-items:center;gap:9px;font-size:calc(12 * var(--u));letter-spacing:2px;color:var(--mut);text-transform:uppercase}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+  .logout{margin-left:calc(14 * var(--u));background:transparent;border:1px solid var(--line);
+    color:var(--mut);font-family:inherit;font-size:calc(11 * var(--u));letter-spacing:2px;
+    text-transform:uppercase;padding:calc(5 * var(--u)) calc(12 * var(--u));border-radius:8px;
+    cursor:pointer;transition:color .2s,border-color .2s}
+  .logout:hover{color:var(--lime);border-color:rgba(165,255,8,.4)}
+
+  /* ---------- PROMO LOOP ---------- */
+  .promo{position:relative;overflow:hidden;background:
+     radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
+     linear-gradient(160deg,#0c0e07,#000);}
+  .scene{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:calc(54 * var(--u)) calc(60 * var(--u));opacity:0;transform:scale(1.04);transition:opacity .9s ease, transform 6s ease;}
+  .scene.on{opacity:1;transform:scale(1)}
+  /* Media scenes: full-bleed promotional image/video filling the panel. */
+  .scene.media{padding:0;transform:none}
+  .scene.media.on{transform:none}
+  .scene.media{background:
+     radial-gradient(90% 70% at 30% 20%, rgba(165,255,8,.08), transparent 55%),
+     linear-gradient(160deg,#0c0e07,#000);}
+  .scene.media img,.scene.media video{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+
+  .coins{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  .coin{position:absolute;width:14px;height:14px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #d9ff7a, var(--lime) 60%, var(--lime-dim));
+    box-shadow:0 0 10px rgba(165,255,8,.6);opacity:.0;animation:rise 7s linear infinite}
+  @keyframes rise{0%{transform:translateY(40px) scale(.6);opacity:0}
+    12%{opacity:.9}88%{opacity:.7}100%{transform:translateY(-720px) scale(1);opacity:0}}
+
+  /* progress ticks for the loop */
+  .ticks{position:absolute;left:calc(54 * var(--u));bottom:calc(34 * var(--u));display:flex;gap:8px}
+  .tk{width:calc(46 * var(--u));height:4px;border-radius:3px;background:rgba(255,255,255,.14);overflow:hidden}
+  .tk i{display:block;height:100%;width:0;background:var(--lime);box-shadow:0 0 8px var(--lime)}
+  .tk.active i{animation:fill 6s linear forwards}
+  @keyframes fill{to{width:100%}}
+
+  /* ---------- SIGNUP PANEL ---------- */
+  .join{position:relative;background:
+     linear-gradient(180deg,#0b0d07,#050603);
+     border-left:1px solid var(--line);padding:calc(30 * var(--u)) calc(30 * var(--u)) calc(22 * var(--u));
+     display:flex;flex-direction:column;align-items:center}
+  .join:before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,transparent,var(--lime),transparent)}
+  .jtitle{font-family:'Anton';font-size:calc(34 * var(--u));color:#fff;letter-spacing:.5px;text-align:center;line-height:1}
+  .jtitle em{font-style:normal;color:var(--lime)}
+  .jsmall{font-size:calc(12 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase;margin-top:calc(8 * var(--u));text-align:center}
+
+  .qrbox{position:relative;margin:calc(20 * var(--u)) 0 calc(6 * var(--u));width:calc(236 * var(--u));height:calc(236 * var(--u));border-radius:20px;
+    background:#fff;display:grid;place-items:center;
+    box-shadow:0 0 0 2px var(--lime), 0 0 40px rgba(165,255,8,.35);overflow:hidden}
+  #qr{width:86%;height:86%;object-fit:contain}
+  #qr{transition:opacity .35s,filter .35s}
+  #qr.flip{opacity:.15}
+  /* Until a LIVE QR has loaded, the bundled placeholder is blurred beyond
+     scannability — a wrong-but-scannable QR is worse than none. */
+  #qr.pending{filter:blur(14px);opacity:.3}
+  .scanline{position:absolute;left:8px;right:8px;height:34px;border-radius:8px;
+    background:linear-gradient(180deg,rgba(165,255,8,0),rgba(165,255,8,.35),rgba(165,255,8,0));
+    animation:scan 2.6s ease-in-out infinite;pointer-events:none}
+  @keyframes scan{0%,100%{top:8px}50%{top:194px}}
+  .corner{position:absolute;width:22px;height:22px;border:3px solid var(--lime)}
+  .c1{top:8px;left:8px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+  .c2{top:8px;right:8px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+  .c3{bottom:8px;left:8px;border-right:0;border-top:0;border-radius:0 0 0 6px}
+  .c4{bottom:8px;right:8px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+
+  .token{display:flex;align-items:center;gap:8px;font-family:'Space Mono';font-size:calc(11 * var(--u));
+    color:var(--mut);letter-spacing:1px;margin-top:calc(2 * var(--u))}
+  .token b{color:var(--lime-dim)}
+
+  .steps{display:flex;gap:calc(8 * var(--u));margin-top:calc(16 * var(--u));width:100%}
+  .step{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:calc(11 * var(--u)) calc(8 * var(--u));text-align:center}
+  .step .n{font-family:'Anton';font-size:calc(18 * var(--u));color:var(--lime);line-height:1}
+  .step .t{font-size:calc(11 * var(--u));color:var(--txt);margin-top:5px;letter-spacing:.4px;line-height:1.25;text-transform:uppercase;opacity:.85}
+
+  .store{margin-top:calc(16 * var(--u));width:100%;border-radius:12px;padding:calc(12 * var(--u)) calc(14 * var(--u));text-align:center;
+    background:linear-gradient(180deg,rgba(165,255,8,.10),rgba(165,255,8,.03));
+    border:1px solid var(--line)}
+  .store .lbl{font-size:calc(10 * var(--u));letter-spacing:3px;color:var(--mut);text-transform:uppercase}
+  .store .nm{font-family:'Anton';font-size:calc(20 * var(--u));color:#fff;margin-top:3px;letter-spacing:.5px}
+  .store .nm span{color:var(--lime)}
+
+  /* ---------- FOOTER COMPLIANCE ---------- */
+  .foot{grid-column:1/3;display:flex;align-items:center;justify-content:center;gap:calc(18 * var(--u));
+    border-top:1px solid var(--line);background:#050603;
+    font-size:calc(10 * var(--u));letter-spacing:1.5px;color:var(--mut);text-transform:uppercase}
+  .foot b{color:var(--lime-dim)}
+  .sep{width:4px;height:4px;border-radius:50%;background:var(--mut);opacity:.5}
+
+  /* ============================================================
+     PORTRAIT / PHONE LAYOUT — identical to the classic kiosk.html.
+     ============================================================ */
+  @media (orientation:portrait){
+    :root{ --u: calc(100vw / 430); }
+    html,body{overflow:hidden;width:100%;height:100%}
+    .wrap{position:fixed;inset:0;display:block;width:100%;height:100%;overflow:hidden}
+
+    .stage{
+      position:absolute;inset:0;
+      width:100%;height:100dvh;max-width:100%;
+      transform:none !important;
+      border-radius:0;box-shadow:none;overflow:hidden;
+      display:flex;flex-direction:column;
+    }
+    .promo{overflow:hidden}
+
+    .bar{order:1;flex:0 0 auto;padding:10px 18px}
+    .logo{font-size:22px}
+    .live{font-size:11px}
+    .logout{font-size:11px;padding:5px 11px}
+
+    .join{order:2;flex:0 0 auto;border-left:0;border-bottom:1px solid var(--line);
+      padding:14px 20px 16px;overflow:hidden}
+    .jtitle{font-size:clamp(20px,5.2vw,28px)}
+    .jsmall{font-size:11px;margin-top:5px}
+    .qrbox{width:min(46vh,62vw);height:min(46vh,62vw);max-width:280px;max-height:280px;
+      margin:12px 0 6px}
+    #qr{width:86%;height:86%;object-fit:contain}
+    .scanline{animation:none;display:none}
+    .token{font-size:10px;margin-top:2px}
+    .steps{width:100%;max-width:440px;gap:6px;margin-top:10px}
+    .step{padding:8px 4px}
+    .step .n{font-size:16px}
+    .step .t{font-size:10px;letter-spacing:.2px;margin-top:3px}
+    .store{width:100%;max-width:440px;margin-top:10px;padding:9px 12px}
+    .store .nm{font-size:17px}
+
+    .promo{order:3;flex:1 1 auto;position:relative;width:100%;max-width:100vw;
+      min-height:0;overflow:hidden}
+    .scene{padding:22px 24px;max-width:100%;justify-content:center}
+    .ticks{left:24px;bottom:14px}
+
+    .foot{order:4;flex:0 0 auto;flex-wrap:wrap;gap:4px 12px;padding:8px 16px;
+      text-align:center;font-size:9px}
+  }
+
+  /* Short phones: shrink the QR a touch more so it still fits. */
+  @media (orientation:portrait) and (max-height:680px){
+    .bar{padding:8px 16px}.logo{font-size:20px}
+    .join{padding:8px 18px 10px}
+    .jtitle{font-size:clamp(18px,4.6vw,24px)}
+    .jsmall{margin-top:3px}
+    .qrbox{width:min(38vh,52vw);height:min(38vh,52vw);margin:7px 0 4px}
+    .steps{margin-top:7px}.step{padding:6px 4px}
+    .store{margin-top:7px;padding:7px 12px}
+    .scene{padding:14px 22px}
+    .foot{padding:6px 14px;font-size:8px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage" id="stage">
+
+    <!-- HEADER -->
+    <div class="bar">
+      <div class="brand">
+        <div>
+          <div class="logo">AOG<span>.</span></div>
+          <div class="tag">Sweepstakes · Play Free</div>
+        </div>
+      </div>
+      <div class="live">
+        <span class="dot"></span> In-Store Live
+        <button type="button" id="logout" class="logout">Logout</button>
+      </div>
+    </div>
+
+    <!-- PROMO LOOP — same media files as the classic kiosk (../), so promo
+         content updates reach both solutions from one place. -->
+    <div class="promo" id="promo">
+      <div class="coins" id="coins"></div>
+
+      <div class="scene media on" data-video="1">
+        <video id="promoVideo" muted playsinline preload="auto"
+               poster="../Image%201.webp">
+          <source src="../Marketing%2BVideo.webm" type="video/webm" />
+        </video>
+      </div>
+      <div class="scene media"><img src="../Image%201.webp" alt="" /></div>
+      <div class="scene media"><img src="../Image%202.webp" alt="" /></div>
+      <div class="scene media"><img src="../Image%203.webp" alt="" /></div>
+      <div class="scene media"><img src="../Image%204.webp" alt="" /></div>
+      <div class="scene media"><img src="../Image%205.webp" alt="" /></div>
+
+      <div class="ticks">
+        <div class="tk active"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+        <div class="tk"><i></i></div>
+      </div>
+    </div>
+
+    <!-- SIGNUP PANEL -->
+    <div class="join">
+      <div class="jtitle">SCAN TO <em>JOIN</em></div>
+      <div class="jsmall">Sign up on your phone</div>
+
+      <div class="qrbox">
+        <div class="corner c1"></div><div class="corner c2"></div>
+        <div class="corner c3"></div><div class="corner c4"></div>
+        <img id="qr" class="pending" src="../QR.png" alt="Scan to join" width="204" height="204" />
+        <div class="scanline"></div>
+      </div>
+
+      <div class="token" id="tokenLine">
+        <div class="dot" style="width:8px;height:8px"></div>
+        <span id="tokenText">secure code · scan to sign up</span>
+      </div>
+
+      <div class="steps">
+        <div class="step"><div class="n">1</div><div class="t">Scan code</div></div>
+        <div class="step"><div class="n">2</div><div class="t">Sign up free</div></div>
+        <div class="step"><div class="n">3</div><div class="t">Start playing</div></div>
+      </div>
+
+      <div class="store">
+        <div class="lbl">You're joining via</div>
+        <div class="nm" id="storeName">AOG <span>Creator</span></div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="foot">
+      <span><b>18+</b> only</span><span class="sep"></span>
+      <span>No purchase necessary</span><span class="sep"></span>
+      <span>Sweepstakes void where prohibited</span><span class="sep"></span>
+      <span>Value Vends Tech LLC</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---- promo loop — identical behaviour to the classic kiosk ---- */
+  const scenes=[...document.querySelectorAll('.scene')];
+  const ticks=[...document.querySelectorAll('.tk')];
+  const promoVideo=document.getElementById('promoVideo');
+  const IMG_MS=6000;          // each image dwell time
+  const VIDEO_CAP_MS=90000;   // safety cap if 'ended' never fires
+  let i=0, advanceTimer=null;
+
+  function setTick(idx){
+    ticks.forEach((t,n)=>t.classList.toggle('active', n===idx));
+    if(ticks[idx]){ void ticks[idx].querySelector('i').offsetWidth; ticks[idx].classList.add('active'); }
+  }
+
+  function show(idx){
+    clearTimeout(advanceTimer);
+    scenes.forEach((s,n)=>s.classList.toggle('on', n===idx));
+    setTick(idx);
+    i=idx;
+    const isVideo = scenes[idx].getAttribute('data-video')==='1' && promoVideo;
+    if(isVideo){
+      let advanced=false;
+      const go=()=>{ if(advanced) return; advanced=true; next(); };
+      try{
+        promoVideo.currentTime=0;
+        promoVideo.onended=go;
+        const p=promoVideo.play();
+        if(p&&p.catch) p.catch(()=>{ advanceTimer=setTimeout(go,IMG_MS); });
+      }catch(e){ advanceTimer=setTimeout(go,IMG_MS); }
+      advanceTimer=setTimeout(go,VIDEO_CAP_MS);
+    } else {
+      advanceTimer=setTimeout(next,IMG_MS);
+    }
+  }
+  function next(){ show((i+1)%scenes.length); }
+  show(0);
+
+  /* ---- floating coins ---- */
+  const cw=document.getElementById('coins');
+  for(let n=0;n<14;n++){
+    const c=document.createElement('div');c.className='coin';
+    c.style.left=(Math.random()*100)+'%';
+    c.style.animationDelay=(Math.random()*7)+'s';
+    c.style.animationDuration=(5+Math.random()*4)+'s';
+    cw.appendChild(c);
+  }
+
+  /* ---- live referral QR (auto-link session) ----
+     Same /referral/my-link flow as the classic kiosk, but on the auto-link
+     session (AUTO_KEYS/autoFetch). No session -> back to index.html, which
+     re-signs-in from the link's credentials if they're present, or shows
+     "reopen your link" if not. No device registration or native-bridge code
+     here — this solution is a plain weblink, never the APK. */
+  (function(){
+    const qrImg    = document.getElementById('qr');
+    const tokenTxt = document.getElementById('tokenText');
+    const storeNm  = document.getElementById('storeName');
+    let blobUrl = null;
+
+    const token = (function(){ try { return localStorage.getItem(AUTO_KEYS.token); } catch(e){ return null; } })();
+    if (!token) { location.replace('index.html'); return; }
+
+    // Show the signed-in account's name in the "joining via" panel.
+    try {
+      const u = JSON.parse(localStorage.getItem(AUTO_KEYS.user) || '{}');
+      const name = [u.firstname, u.lastname].filter(Boolean).join(' ').trim();
+      if (name) storeNm.innerHTML = 'Creator <span>' + name + '</span>';
+    } catch(e){ /* ignore */ }
+
+    let loaded = false;         // true once a LIVE QR is on screen
+    let retryTimer = null;
+
+    async function fetchQR(){
+      const res = await autoFetch('/referral/my-link');   // 401 -> redirects away
+      const json = await res.json().catch(() => ({}));
+      const tok = res.ok && json && json.data && json.data.token ? json.data : null;
+      if (!tok) { tokenTxt.textContent = 'no active referral link'; return false; }
+
+      const qrRes = await autoFetch('/referral/' + tok.token + '/qr?format=png&size=512');
+      if (!qrRes.ok) return false;
+
+      const blob = await qrRes.blob();
+      if (!blob || blob.size === 0) return false;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(blob);
+      qrImg.src = blobUrl;
+      qrImg.classList.remove('pending');   // live QR on screen — unblur
+      loaded = true;
+      tokenTxt.textContent = 'secure code · scan to sign up';
+      return true;
+    }
+
+    async function loadQR(attempt){
+      attempt = attempt || 1;
+      clearTimeout(retryTimer);
+      if (!loaded) tokenTxt.textContent = attempt === 1 ? 'loading your code…' : 'reconnecting…';
+      try {
+        const ok = await fetchQR();
+        if (!ok && attempt < 6) {
+          retryTimer = setTimeout(() => loadQR(attempt + 1), Math.min(2000 * attempt, 10000));
+        } else if (!ok) {
+          tokenTxt.textContent = 'reopen your kiosk link';
+        }
+      } catch (err) {
+        // autoFetch already redirected on 401; nothing more to do here.
+        console.warn('QR load error:', err);
+      }
+    }
+
+    loadQR();
+    // Refresh the QR periodically so it can't go stale on a long-running kiosk.
+    setInterval(loadQR, 10 * 60 * 1000);
+    addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });
+
+    // Logout — clears ONLY the auto-link session (the classic flow's session,
+    // if any, is untouched) and shows the "reopen your link" screen.
+    document.getElementById('logout').addEventListener('click', () => {
+      try { clearAutoSession(); } catch (e) { /* storage unavailable */ }
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      location.replace('index.html');
+    });
+  })();
+</script>
+</body>
+</html>

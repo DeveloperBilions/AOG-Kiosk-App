@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AOG — Kiosk Link</title>
+<!-- Never index a page whose links carry credentials. -->
+<meta name="robots" content="noindex, nofollow" />
+<script src="config.js?v=20260721a"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&display=swap');
+  :root{--lime:#A5FF08;--mut:#6f7a55;--txt:#e9ffce}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;font-family:'Chakra Petch',sans-serif;
+    display:grid;place-items:center;overflow:hidden}
+  .card{text-align:center;padding:32px;max-width:520px}
+  .logo{font-family:'Anton';font-size:44px;color:var(--lime);letter-spacing:1px;
+    text-shadow:0 0 22px rgba(165,255,8,.5)}
+  .logo span{color:#fff}
+  .msg{margin-top:18px;font-size:15px;color:var(--txt);letter-spacing:1px;line-height:1.6}
+  .msg.err{color:#ff8f8f}
+  .spin{margin:22px auto 0;width:34px;height:34px;border-radius:50%;
+    border:3px solid rgba(165,255,8,.18);border-top-color:var(--lime);
+    animation:sp 1s linear infinite}
+  .spin.off{display:none}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hint{margin-top:14px;font-size:11px;color:var(--mut);letter-spacing:2px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">AOG<span>.</span></div>
+  <div class="msg" id="msg">Connecting…</div>
+  <div class="spin" id="spin"></div>
+  <div class="hint">Kiosk auto sign-in</div>
+</div>
+
+<script>
+  /* ---- auto sign-in from the link itself ----
+     This is the SECOND weblink solution: the URL carries base64-encoded
+     credentials and this page exchanges them for a session, then forwards
+     straight to the QR kiosk — no typed login screen anywhere in this flow.
+
+     Link format (both accepted):
+       auto/?c=BASE64          — query parameter (as requested)
+       auto/#c=BASE64          — fragment; PREFERRED, because a fragment is
+                                 never sent over the network, so it can't
+                                 land in any server/CDN access log.
+     BASE64 = base64 of "username:password" (split on the FIRST colon, so
+     passwords may contain colons). URL-safe base64 (-, _) also accepted.
+
+     Flow:
+       creds in URL  -> always sign in fresh (link is the source of truth),
+                        then location.replace() to kiosk.html so the creds
+                        URL doesn't stay in this tab's history entry.
+       no creds      -> reuse a stored session if one exists (this is where
+                        kiosk.html bounces on an unrecoverable 401), else
+                        show "reopen your link".
+       bad creds     -> permanent error (no point retrying).
+       network error -> retry every 15s forever; kiosks are unattended. */
+  (function(){
+    const msg  = document.getElementById('msg');
+    const spin = document.getElementById('spin');
+    function say(t, isErr){
+      msg.textContent = t;
+      msg.className = 'msg' + (isErr ? ' err' : '');
+      spin.className = 'spin' + (isErr ? ' off' : '');
+    }
+
+    function readCreds(){
+      const m = /[?&]c=([^&]+)/.exec(location.search) ||
+                /[#&]c=([^&]+)/.exec(location.hash);
+      if (!m) return null;
+      try {
+        let b64 = decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        const raw = atob(b64);
+        const i = raw.indexOf(':');
+        if (i < 1) return null;
+        return { user: raw.slice(0, i), pass: raw.slice(i + 1) };
+      } catch (e) { return null; }
+    }
+
+    const hasParam = /[?&#]c=/.test(location.search + ' ' + location.hash);
+    const creds = readCreds();
+    const stored = (function(){ try { return localStorage.getItem(AUTO_KEYS.token); } catch(e){ return null; } })();
+
+    if (!creds) {
+      if (hasParam) { say('This link’s access code is not valid. Ask for a new kiosk link.', true); return; }
+      if (stored)   { location.replace('kiosk.html'); return; }
+      say('This page needs a kiosk link with an access code. Reopen your link.', true);
+      return;
+    }
+
+    async function signIn(){
+      say('Connecting…');
+      try {
+        const res = await fetch(AOG_API + '/auth/login-agent', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: creds.user, pass: creds.pass })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success || !json.data || !json.data.accessToken) {
+          // Auth rejected — retrying the same credentials can't help.
+          say(json.message || 'Sign-in failed. Ask for a new kiosk link.', true);
+          return;
+        }
+        try {
+          localStorage.setItem(AUTO_KEYS.token, json.data.accessToken);
+          const rt = json.data.refreshToken || json.data.refresh_token;
+          if (rt) localStorage.setItem(AUTO_KEYS.refresh, rt);
+          localStorage.setItem(AUTO_KEYS.user, JSON.stringify(json.data.userData || {}));
+        } catch (e) { /* storage unavailable — kiosk.html will bounce back */ }
+        location.replace('kiosk.html');
+      } catch (err) {
+        // Network error — unattended kiosk, so keep trying.
+        say('Network error — retrying…');
+        setTimeout(signIn, 15000);
+      }
+    }
+    signIn();
+  })();
+</script>
+</body>
+</html>
