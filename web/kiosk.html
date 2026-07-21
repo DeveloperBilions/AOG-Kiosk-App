@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>AOG — Store Mode Kiosk</title>
 <!-- Cache-bust config.js (see index.html). Keep this ?v= in sync with index.html. -->
-<script src="config.js?v=20260710c"></script>
+<script src="config.js?v=20260721a"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -429,9 +429,30 @@
     const storeNm  = document.getElementById('storeName');
     let blobUrl = null;
 
+    // Session handoff: a login made on the bundled file:// fallback forwards
+    // here with the fresh session in the URL fragment (localStorage is
+    // per-origin, so it can't carry over by itself). Store it, then strip the
+    // hash so the tokens never linger in the address bar / history entry.
+    try {
+      const m = /[#&]s=([^&]+)/.exec(location.hash || '');
+      if (m) {
+        const s = JSON.parse(decodeURIComponent(m[1]));
+        if (s && s.t) {
+          localStorage.setItem(AOG_KEYS.token, s.t);
+          if (s.r) localStorage.setItem(AOG_KEYS.refresh, s.r);
+          if (s.u) localStorage.setItem(AOG_KEYS.user, JSON.stringify(s.u));
+        }
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+    } catch (e) { /* bad fragment — fall through to the normal session check */ }
+
     // No session -> back to login (typed-login flow).
     const token = (function(){ try { return localStorage.getItem(AOG_KEYS.token); } catch(e){ return null; } })();
-    if (!token) { location.href = 'index.html'; return; }
+    if (!token) {
+      if (typeof kioskNav === 'function') kioskNav('index.html');
+      else location.href = 'index.html';
+      return;
+    }
 
     // Devices that signed in before refresh tokens were stored hold only an
     // access token; mint and store a refresh token from it while it's still
@@ -578,7 +599,11 @@
         }
       } catch (e) { /* storage unavailable */ }
       if (blobUrl) URL.revokeObjectURL(blobUrl);
-      location.href = 'index.html';
+      // kioskNav: from the bundled file:// fallback this returns to the
+      // HOSTED login when the network is up, so "logout + sign back in"
+      // escapes the stale offline copy instead of looping inside it.
+      if (typeof kioskNav === 'function') kioskNav('index.html');
+      else location.href = 'index.html';
     });
   })();
 </script>

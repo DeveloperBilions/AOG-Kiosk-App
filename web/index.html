@@ -7,7 +7,7 @@
 <!-- Cache-bust config.js: GitHub Pages + the kiosk WebView cache sub-resources
      for ~10 min, so a plain <script src="config.js"> can run a stale copy long
      after a deploy. Bump ?v= whenever config.js changes to force a fresh fetch. -->
-<script src="config.js?v=20260710c"></script>
+<script src="config.js?v=20260721a"></script>
 <script>
   /* ---- already signed in? go straight to the kiosk — BEFORE first paint ----
      The APK reloads this login page (KIOSK_URL = site root) every 15 minutes.
@@ -23,7 +23,11 @@
     try {
       if (localStorage.getItem(AOG_KEYS.token)) {
         document.documentElement.style.visibility = 'hidden';
-        location.replace('kiosk.html');
+        // kioskNav: from the bundled file:// fallback this forwards to the
+        // HOSTED kiosk when the network is back, so a device never stays
+        // trapped on the stale offline copy (and its stale session).
+        if (typeof kioskNav === 'function') kioskNav('kiosk.html', true);
+        else location.replace('kiosk.html');
       }
     } catch (e) { /* storage unavailable — fall through to the login form */ }
   })();
@@ -425,6 +429,23 @@
           await Promise.race([authP, timeout]).catch(function () {});
         } catch (e) { /* never block login on registration */ }
 
+        // On the bundled file:// fallback, a successful login proves the
+        // network is up — go straight to the HOSTED kiosk instead of the
+        // stale bundled one. localStorage is per-origin, so the fresh session
+        // rides along in the URL fragment (never sent to any server);
+        // kiosk.html stores it and strips the hash on arrival.
+        if (location.protocol === 'file:' && typeof AOG_HOSTED === 'string') {
+          let handoff = '';
+          try {
+            handoff = '#s=' + encodeURIComponent(JSON.stringify({
+              t: json.data.accessToken,
+              r: rt || undefined,
+              u: json.data.userData || {}
+            }));
+          } catch (e) { /* fragment is best-effort; hosted login still works */ }
+          window.location.href = AOG_HOSTED + 'kiosk.html' + handoff;
+          return;
+        }
         window.location.href = 'kiosk.html';
       } catch (err) {
         formMsg.textContent = 'Network error — check your connection and try again.';

@@ -22,6 +22,43 @@
     } catch (e) { /* storage unavailable */ }
   };
 
+  /* Canonical hosted origin — where the TV fleet loads the kiosk from. */
+  w.AOG_HOSTED = 'https://developerbilions.github.io/AOG-Kiosk-App/';
+
+  /* Navigate between kiosk pages.
+
+     On an https origin (github.io or the CloudFront mirror) this is a plain
+     relative navigation — same behaviour as before, and it never hops origins
+     (which would strand the localStorage session on the old origin).
+
+     On file:// we are the APK's bundled OFFLINE fallback. Relative navigation
+     would keep the device trapped on the stale bundled copy — with its own
+     separate file-origin localStorage session — even after the network
+     recovers. So from file:// we first probe the hosted site and jump to the
+     absolute hosted URL when it's reachable; only while genuinely offline do
+     we stay on the bundled copy. The probe (not a blind absolute jump) matters:
+     a failed main-frame load would otherwise leave the WebView on an error
+     page until the next 15-min refresh, since KioskActivity only swaps in the
+     offline copy once per cycle.
+
+     Note: sessions are per-origin, so leaving file:// lands on whatever
+     session the hosted origin holds (possibly signed in, possibly the login
+     form) — the stale bundled session is left behind by design. */
+  w.kioskNav = function (page, replace) {
+    function go(url) {
+      try { if (replace) { location.replace(url); return; } } catch (e) {}
+      location.href = url;
+    }
+    if (location.protocol !== 'file:') { go(page); return; }
+    var reachable = fetch(w.AOG_HOSTED + 'config.js',
+                          { method: 'HEAD', cache: 'no-store', mode: 'no-cors' })
+      .then(function () { return true; }, function () { return false; });
+    var timeout = new Promise(function (r) { setTimeout(function () { r(false); }, 4000); });
+    Promise.race([reachable, timeout]).then(function (ok) {
+      go(ok ? w.AOG_HOSTED + page : page);
+    });
+  };
+
   /* Exchange the stored refresh token for a fresh access token via
      POST /users/refresh-token, so a long-running kiosk survives access-token
      expiry without anyone re-typing credentials. Single-flight: concurrent
@@ -128,7 +165,7 @@
     }
     if (res.status === 401) {
       w.clearSession();
-      if (!/index\.html$|\/$/.test(location.pathname)) location.href = 'index.html';
+      if (!/index\.html$|\/$/.test(location.pathname)) w.kioskNav('index.html');
       throw new Error('Unauthorized');
     }
     return res;
