@@ -3,6 +3,11 @@ name: Deploy kiosk page to GitHub Pages
 # Publishes the contents of web/ to GitHub Pages on every push to main.
 # The Android TV app loads the resulting URL and auto-refreshes it, so editing
 # web/index.html or web/QR.png and pushing updates every TV with no reinstall.
+#
+# The same web/ folder is ALSO synced to an S3 bucket fronted by CloudFront
+# (second job below) so it is reachable on the custom subdomain. Both jobs run
+# from the same push; the github.io URL the TV fleet loads is never redirected
+# or touched.
 
 on:
   push:
@@ -43,3 +48,33 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Mirror the exact same web/ folder to the S3 bucket behind the CloudFront
+  # distribution that serves the custom subdomain (CNAME'd from Namecheap).
+  # Gated on AWS_DEPLOY_ENABLED so it stays dormant until the AWS secrets and
+  # variables are configured, and can never break the GitHub Pages deploy the
+  # kiosk fleet depends on.
+  deploy-aws:
+    runs-on: ubuntu-latest
+    if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Sync web/ to S3
+        run: aws s3 sync web "s3://${{ vars.KIOSK_S3_BUCKET }}" --delete
+
+      # CloudFront caches aggressively; invalidate so the subdomain picks up
+      # content pushes as fast as the github.io fleet does.
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.KIOSK_CF_DISTRIBUTION_ID }}" \
+            --paths "/*"
