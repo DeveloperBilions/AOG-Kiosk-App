@@ -48,11 +48,6 @@
   .live{display:flex;align-items:center;gap:calc(13 * var(--u));font-size:calc(18 * var(--u));letter-spacing:2px;color:var(--mut);text-transform:uppercase}
   .dot{width:calc(13 * var(--u));height:calc(13 * var(--u));border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime);animation:pulse 1.8s infinite}
   @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
-  .logout{margin-left:calc(20 * var(--u));background:transparent;border:1px solid var(--line);
-    color:var(--mut);font-family:inherit;font-size:calc(16 * var(--u));letter-spacing:2px;
-    text-transform:uppercase;padding:calc(8 * var(--u)) calc(18 * var(--u));border-radius:calc(11 * var(--u));
-    cursor:pointer;transition:color .2s,border-color .2s}
-  .logout:hover{color:var(--lime);border-color:rgba(165,255,8,.4)}
 
   /* ---------- FULL-SCREEN SIGNUP PANEL (info left · QR right) ---------- */
   .join{flex:1 1 auto;min-height:0;position:relative;
@@ -124,7 +119,6 @@
       </div>
       <div class="live">
         <span class="dot"></span> In-Store Live
-        <button type="button" id="logout" class="logout">Logout</button>
       </div>
     </div>
 
@@ -237,13 +231,6 @@
     // Refresh the QR periodically so it can't go stale on a long-running kiosk.
     setInterval(loadQR, 10 * 60 * 1000);
     addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });
-
-    // Logout — clears ONLY the auto-link session and shows "reopen your link".
-    document.getElementById('logout').addEventListener('click', () => {
-      try { clearAutoSession(); } catch (e) { /* storage unavailable */ }
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-      location.replace('index.html');
-    });
   })();
 </script>
 </body>
