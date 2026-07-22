@@ -13,7 +13,12 @@
   w.AUTO_KEYS = {
     token: 'aog_auto_token',
     refresh: 'aog_auto_refresh',
-    user: 'aog_auto_user'
+    user: 'aog_auto_user',
+    /* Extra link params (?loc=...&scr=... etc., everything except the
+       credential `c`) captured by index.html as a JSON object. Not shown in
+       any UI yet — held for a later backend integration. Survives
+       clearAutoSession on purpose: it belongs to the link, not the session. */
+    meta: 'aog_auto_meta'
   };
 
   /* Drop the auto-link session (logout / unrecoverable 401). */

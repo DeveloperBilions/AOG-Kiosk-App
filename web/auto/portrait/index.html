@@ -9,7 +9,7 @@
 <!-- QR-ONLY PORTRAIT variant of the auto link (1080x1920 / 9:16 signage).
      Same sign-in flow and localStorage session (aog_auto_*) as ../index.html;
      only the kiosk.html it forwards to differs (full-screen QR, no promo). -->
-<script src="../config.js?v=20260722a"></script>
+<script src="../config.js?v=20260722b"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&display=swap');
   :root{--lime:#A5FF08;--mut:#6f7a55;--txt:#e9ffce}
@@ -49,6 +49,25 @@
       msg.className = 'msg' + (isErr ? ' err' : '');
       spin.className = 'spin' + (isErr ? ' off' : '');
     }
+
+    /* Capture ALL extra link params — everything except the credential `c` —
+       from the query string and/or fragment (e.g. ?loc=Store-12&scr=entrance)
+       into localStorage as one JSON object, so they're still available after
+       the redirect to kiosk.html discards the URL. Nothing is shown in the
+       UI; a later backend integration will consume them. Only overwrites
+       when the link actually carries params, so a paramless bounce back to
+       this page can't wipe the last capture. */
+    (function captureMeta(){
+      try {
+        const meta = {};
+        [location.search, location.hash.replace(/^#/, '?')].forEach(function(part){
+          new URLSearchParams(part).forEach(function(v, k){
+            if (k !== 'c') meta[k] = v;
+          });
+        });
+        if (Object.keys(meta).length) localStorage.setItem(AUTO_KEYS.meta, JSON.stringify(meta));
+      } catch (e) { /* storage unavailable */ }
+    })();
 
     function readCreds(){
       const m = /[?&]c=([^&]+)/.exec(location.search) ||
