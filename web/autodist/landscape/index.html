@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AOG — Kiosk Link</title>
+<meta name="robots" content="noindex, nofollow" />
+<!-- QR-ONLY LANDSCAPE variant of the DIST link (1920x1080 / 16:9 signage).
+     Third weblink solution — see ../config.js. The signage platform appends
+     the venue ID at runtime (?dist=_MDD_VENUEID); POST /auth/login-kiosk-dist
+     exchanges it for the mapped store account's kiosk session. No credentials
+     in the link. Session lives under aog_dist_* keys, fully separate from the
+     classic and auto flows. -->
+<script src="../config.js?v=autodist1"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&display=swap');
+  :root{--lime:#A5FF08;--mut:#6f7a55;--txt:#e9ffce}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#000;font-family:'Chakra Petch',sans-serif;
+    display:grid;place-items:center;overflow:hidden}
+  .card{text-align:center;padding:32px;max-width:520px}
+  .logo{font-family:'Anton';font-size:44px;color:var(--lime);letter-spacing:1px;
+    text-shadow:0 0 22px rgba(165,255,8,.5)}
+  .logo span{color:#fff}
+  .msg{margin-top:18px;font-size:15px;color:var(--txt);letter-spacing:1px;line-height:1.6}
+  .msg.err{color:#ff8f8f}
+  .spin{margin:22px auto 0;width:34px;height:34px;border-radius:50%;
+    border:3px solid rgba(165,255,8,.18);border-top-color:var(--lime);
+    animation:sp 1s linear infinite}
+  .spin.off{display:none}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hint{margin-top:14px;font-size:11px;color:var(--mut);letter-spacing:2px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">AOG<span>.</span></div>
+  <div class="msg" id="msg">Connecting…</div>
+  <div class="spin" id="spin"></div>
+  <div class="hint">Kiosk auto sign-in</div>
+</div>
+
+<script>
+  /* Dist-based auto sign-in. Link format: landscape/?dist=VENUEID (also
+     accepted from the #fragment, and from a platform that appends "&dist="
+     without a "?" — CloudFront folds that back into the query string). */
+  (function(){
+    const msg  = document.getElementById('msg');
+    const spin = document.getElementById('spin');
+    function say(t, isErr){
+      msg.textContent = t;
+      msg.className = 'msg' + (isErr ? ' err' : '');
+      spin.className = 'spin' + (isErr ? ' off' : '');
+    }
+
+    /* Read every link param from the query string and/or fragment. Some
+       signage platforms append "&dist=..." to a base URL that has no "?" —
+       if that mangled form ever reaches us intact (e.g. ...portrait/&dist=1),
+       location.search is empty and the pathname carries the params, so parse
+       that too. */
+    function readParams(){
+      const all = {};
+      const parts = [location.search, location.hash.replace(/^#/, '?')];
+      const i = location.pathname.indexOf('&');
+      if (i !== -1) parts.push('?' + location.pathname.slice(i + 1));
+      parts.forEach(function(part){
+        try {
+          new URLSearchParams(part).forEach(function(v, k){ all[k] = v; });
+        } catch (e) { /* malformed part — ignore */ }
+      });
+      return all;
+    }
+
+    const params = readParams();
+    const dist = (params.dist || '').trim();
+
+    /* Capture the non-dist params (?loc=... etc.) for a later backend
+       integration — same contract as the auto links' aog_auto_meta. Only
+       overwrites when the link actually carries extras. */
+    try {
+      const meta = {};
+      Object.keys(params).forEach(function(k){ if (k !== 'dist') meta[k] = params[k]; });
+      if (Object.keys(meta).length) localStorage.setItem(DIST_KEYS.meta, JSON.stringify(meta));
+    } catch (e) { /* storage unavailable */ }
+
+    const storedTok  = (function(){ try { return localStorage.getItem(DIST_KEYS.token); } catch(e){ return null; } })();
+    const storedDist = (function(){ try { return localStorage.getItem(DIST_KEYS.dist);  } catch(e){ return null; } })();
+
+    /* A dist in the URL always wins (screen may have been remapped). With no
+       dist in the URL: an existing session forwards straight to the kiosk,
+       and a remembered dist ID re-signs-in silently — so an expired session
+       recovers without the platform having to resend the param. */
+    const useDist = dist || (!storedTok && storedDist) || '';
+    if (!useDist) {
+      if (storedTok) { location.replace('kiosk.html'); return; }
+      say('This page needs a kiosk link with a dist ID. Reopen your link.', true);
+      return;
+    }
+
+    async function signIn(){
+      say('Connecting…');
+      try {
+        const res = await fetch(AOG_API + '/auth/login-kiosk-dist', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dist: useDist })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success || !json.data || !json.data.accessToken) {
+          // Rejected — retrying the same dist ID can't help.
+          say(json.message || 'This kiosk link is not active. Please contact support.', true);
+          return;
+        }
+        try {
+          localStorage.setItem(DIST_KEYS.token, json.data.accessToken);
+          const rt = json.data.refreshToken || json.data.refresh_token;
+          if (rt) localStorage.setItem(DIST_KEYS.refresh, rt);
+          localStorage.setItem(DIST_KEYS.user, JSON.stringify(json.data.userData || {}));
+          localStorage.setItem(DIST_KEYS.dist, useDist);
+        } catch (e) { /* storage unavailable — kiosk.html will bounce back */ }
+        location.replace('kiosk.html');
+      } catch (err) {
+        // Network error — unattended kiosk, so keep trying.
+        say('Network error — retrying…');
+        setTimeout(signIn, 15000);
+      }
+    }
+    signIn();
+  })();
+</script>
+</body>
+</html>
