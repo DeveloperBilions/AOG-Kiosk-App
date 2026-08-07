@@ -86,10 +86,18 @@
     const storedTok  = (function(){ try { return localStorage.getItem(DIST_KEYS.token); } catch(e){ return null; } })();
     const storedDist = (function(){ try { return localStorage.getItem(DIST_KEYS.dist);  } catch(e){ return null; } })();
 
-    /* A dist in the URL always wins (screen may have been remapped). With no
-       dist in the URL: an existing session forwards straight to the kiosk,
-       and a remembered dist ID re-signs-in silently — so an expired session
-       recovers without the platform having to resend the param. */
+    /* Signage players reload this URL on every content loop, so a fresh
+       sign-in per load would hammer /login-kiosk-dist from a whole venue's
+       shared IP. If we already hold a session for the SAME dist ID, reuse it
+       and forward straight to the kiosk — distFetch silently refreshes an
+       expired token, and an unrecoverable session bounces back here with no
+       URL params, which falls through to the re-sign-in below. Only a
+       DIFFERENT dist in the URL (screen remapped) forces a new sign-in. */
+    if (dist && storedTok && storedDist === dist) { location.replace('kiosk.html'); return; }
+
+    /* With no dist in the URL: an existing session forwards straight to the
+       kiosk, and a remembered dist ID re-signs-in silently — so an expired
+       session recovers without the platform having to resend the param. */
     const useDist = dist || (!storedTok && storedDist) || '';
     if (!useDist) {
       if (storedTok) { location.replace('kiosk.html'); return; }
