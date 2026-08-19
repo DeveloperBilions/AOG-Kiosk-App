@@ -4,6 +4,11 @@ In-store "scan to join" kiosk for Android TV. A single full-screen web page
 (the promo loop + sign-up QR) packaged as a native Android TV app you sideload
 onto TVs in stores.
 
+> **Deploying?** Step-by-step deployment for all three link modes (GitHub
+> Pages / Android fleet, `auto/` credential links, `autodist/` dist-ID links),
+> the shared S3/CloudFront/Route 53 infrastructure, and the gotchas for each:
+> **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
 ## How it works (the important part)
 
 ```
