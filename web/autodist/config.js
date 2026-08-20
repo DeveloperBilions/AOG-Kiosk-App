@@ -86,7 +86,7 @@
      store account the backend currently maps that ID to. This is how a
      kiosk_dist_id remap in the DB reaches screens that already hold a valid
      session — session reuse alone would keep the OLD account's tokens alive
-     forever via refresh. kiosk.html calls it on load and hourly.
+     forever via refresh. kiosk.html calls it on load and every 15 minutes.
      Resolves true when the mapped account CHANGED (caller should refetch the
      QR). Network failure keeps the current session untouched — an API blip
      must never blank a working screen. A 401 means the dist ID is no longer

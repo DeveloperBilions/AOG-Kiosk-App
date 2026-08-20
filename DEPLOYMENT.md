@@ -232,11 +232,11 @@ the `/autodist/…` URLs.
     sign-in on the next page load.
   - Keep the same dist ID and move it to another account in the DB
     (`SET kiosk_dist_id` on the new store, NULL on the old). Running screens
-    pick this up on their next page reload and at most within **1 hour** —
-    the kiosk page re-signs-in from its stored dist ID on load and hourly
-    (`refreshDistIdentity()` in `web/autodist/config.js`) precisely so DB
-    remaps reach screens nobody touches.
-- Revoking a venue = `SET kiosk_dist_id = NULL` — the hourly re-sign-in gets
+    pick this up on their next page reload and at most within **15 minutes** —
+    the kiosk page re-signs-in from its stored dist ID on load and every
+    15 minutes (`refreshDistIdentity()` in `web/autodist/config.js`)
+    precisely so DB remaps reach screens nobody touches.
+- Revoking a venue = `SET kiosk_dist_id = NULL` — the periodic re-sign-in gets
   a 401, the session is dropped, and the screen shows "This kiosk link is
   not active" instead of a stale QR.
 

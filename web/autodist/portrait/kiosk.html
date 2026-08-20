@@ -212,14 +212,14 @@
       }
     }
 
-    // Re-sign-in from the stored dist ID on load and hourly, so remapping
+    // Re-sign-in from the stored dist ID on load and every 15 min, so remapping
     // this screen's kiosk_dist_id to a DIFFERENT store account in the DB
     // takes effect on running screens without touching the device. On a
     // network failure it keeps the current session and just shows the QR.
     refreshDistIdentity().finally(loadQR);
     setInterval(function(){
       refreshDistIdentity().then(function(changed){ if (changed) loadQR(); });
-    }, 60 * 60 * 1000);
+    }, 15 * 60 * 1000);
     // Refresh the QR periodically so it can't go stale on a long-running kiosk.
     setInterval(loadQR, 10 * 60 * 1000);
     addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });
