@@ -9,7 +9,7 @@
      signup/QR panel + compliance footer. No promo video/images. Loads
      ../config.js (DIST_KEYS/distFetch) — dist-link session (aog_dist_*).
      Keep this ?v= in sync with portrait/index.html. -->
-<script src="../config.js?v=autodist1"></script>
+<script src="../config.js?v=autodist2"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
@@ -212,7 +212,14 @@
       }
     }
 
-    loadQR();
+    // Re-sign-in from the stored dist ID on load and hourly, so remapping
+    // this screen's kiosk_dist_id to a DIFFERENT store account in the DB
+    // takes effect on running screens without touching the device. On a
+    // network failure it keeps the current session and just shows the QR.
+    refreshDistIdentity().finally(loadQR);
+    setInterval(function(){
+      refreshDistIdentity().then(function(changed){ if (changed) loadQR(); });
+    }, 60 * 60 * 1000);
     // Refresh the QR periodically so it can't go stale on a long-running kiosk.
     setInterval(loadQR, 10 * 60 * 1000);
     addEventListener('beforeunload', () => { if (blobUrl) URL.revokeObjectURL(blobUrl); });

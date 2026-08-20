@@ -227,9 +227,18 @@ the `/autodist/…` URLs.
   must be deployed — it 302s `/autodist/portrait&dist=123` to
   `/autodist/portrait/?dist=123`. With the normal `?dist=` form, the
   currently-deployed function is enough.
-- Remapping a screen to a different store = point its `dist` at the new ID
-  (a different dist in the URL always forces a fresh sign-in); revoking a
-  venue = `SET kiosk_dist_id = NULL`.
+- Remapping a screen to a different store, either way works:
+  - Change the `dist` in the URL — a different dist always forces a fresh
+    sign-in on the next page load.
+  - Keep the same dist ID and move it to another account in the DB
+    (`SET kiosk_dist_id` on the new store, NULL on the old). Running screens
+    pick this up on their next page reload and at most within **1 hour** —
+    the kiosk page re-signs-in from its stored dist ID on load and hourly
+    (`refreshDistIdentity()` in `web/autodist/config.js`) precisely so DB
+    remaps reach screens nobody touches.
+- Revoking a venue = `SET kiosk_dist_id = NULL` — the hourly re-sign-in gets
+  a 401, the session is dropped, and the screen shows "This kiosk link is
+  not active" instead of a stale QR.
 
 ---
 

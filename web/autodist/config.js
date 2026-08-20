@@ -82,6 +82,50 @@
     return refreshInFlight;
   }
 
+  /* Re-sign-in from the stored dist ID, REPLACING the session with whatever
+     store account the backend currently maps that ID to. This is how a
+     kiosk_dist_id remap in the DB reaches screens that already hold a valid
+     session — session reuse alone would keep the OLD account's tokens alive
+     forever via refresh. kiosk.html calls it on load and hourly.
+     Resolves true when the mapped account CHANGED (caller should refetch the
+     QR). Network failure keeps the current session untouched — an API blip
+     must never blank a working screen. A 401 means the dist ID is no longer
+     mapped/eligible: drop the session and bounce to index.html, which shows
+     the "not active" message. */
+  w.refreshDistIdentity = async function () {
+    var dist = null, prevUser = {};
+    try {
+      dist = localStorage.getItem(w.DIST_KEYS.dist);
+      prevUser = JSON.parse(localStorage.getItem(w.DIST_KEYS.user) || '{}');
+    } catch (e) { /* storage unavailable */ }
+    if (!dist) return false;
+    try {
+      var res = await fetch(w.AOG_API + '/auth/login-kiosk-dist', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dist: dist })
+      });
+      var json = await res.json().catch(function () { return {}; });
+      var d = (json && json.data) || null;
+      if (res.ok && json.success && d && d.accessToken) {
+        try {
+          localStorage.setItem(w.DIST_KEYS.token, d.accessToken);
+          var rt = d.refreshToken || d.refresh_token;
+          if (rt) localStorage.setItem(w.DIST_KEYS.refresh, rt);
+          localStorage.setItem(w.DIST_KEYS.user, JSON.stringify(d.userData || {}));
+        } catch (e) { /* storage unavailable */ }
+        return !!(d.userData && d.userData.member_id &&
+                  d.userData.member_id !== prevUser.member_id);
+      }
+      if (res.status === 401) {
+        w.clearDistSession();
+        if (!/index\.html$|\/$/.test(location.pathname)) location.replace('index.html');
+      }
+    } catch (e) { /* network error — keep the current session */ }
+    return false;
+  };
+
   /* fetch() wrapper with the dist-link Bearer token. On 401 it tries a
      silent refresh and retries once; only if that fails does it clear the
      session and bounce to index.html — which signs back in from the stored
