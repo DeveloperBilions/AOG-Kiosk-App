@@ -11,7 +11,7 @@
      Keep this ?v= in sync with portrait/index.html. -->
 <script src="../config.js?v=20260722b"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=Chakra+Petch:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
 
   :root{
     --lime:#A5FF08;
@@ -57,10 +57,16 @@
     background:linear-gradient(180deg,#0b0d07,#050603)}
   .join:before{content:"";position:absolute;top:0;left:0;right:0;height:calc(4 * var(--u));
     background:linear-gradient(90deg,transparent,var(--lime),transparent)}
-  .jtitle{font-family:'Anton';font-size:calc(140 * var(--u));color:#fff;letter-spacing:1px;text-align:center;line-height:1}
+  .jtitle{font-family:'Anton';font-size:calc(176 * var(--u));color:#fff;letter-spacing:1px;text-align:center;line-height:.98;white-space:nowrap}
   .jtitle em{font-style:normal;color:var(--lime)}
-  .jsmall{font-size:calc(30 * var(--u));letter-spacing:1px;color:var(--mut);text-align:center}
-  .jsmall em{font-style:normal;color:var(--lime);font-weight:700}
+  /* Solid lime badge — the sub-headline is a filled call-out, not muted body
+     copy, so it still reads from across the store. It spans the same width as
+     the headline block for the banded look. */
+  .jbadge{display:block;background:var(--lime);color:#000;
+    font-family:'Inter',system-ui,sans-serif;font-weight:700;
+    font-size:calc(56 * var(--u));letter-spacing:1px;text-transform:uppercase;
+    text-align:center;padding:calc(10 * var(--u)) calc(26 * var(--u));border-radius:calc(6 * var(--u));
+    margin-top:calc(18 * var(--u));line-height:1.1}
 
   .qrbox{position:relative;width:calc(740 * var(--u));height:calc(740 * var(--u));border-radius:calc(36 * var(--u));
     background:#fff;display:grid;place-items:center;
@@ -79,14 +85,25 @@
   .c3{bottom:calc(16 * var(--u));left:calc(16 * var(--u));border-right:0;border-top:0;border-radius:0 0 0 calc(12 * var(--u))}
   .c4{bottom:calc(16 * var(--u));right:calc(16 * var(--u));border-left:0;border-top:0;border-radius:0 0 calc(12 * var(--u)) 0}
 
-  .token{display:flex;align-items:center;gap:calc(14 * var(--u));font-family:'Space Mono';font-size:calc(22 * var(--u));
-    color:var(--mut);letter-spacing:1px}
+  /* QR caption line ("SECURE CODE · SCAN TO SIGN-UP") sits directly above the
+     code, set in Inter Medium 500 per the Figma spec. */
+  .token{display:flex;align-items:center;justify-content:center;gap:calc(16 * var(--u));
+    font-family:'Inter',system-ui,sans-serif;font-weight:500;
+    font-size:calc(30 * var(--u));color:#fff;letter-spacing:calc(3 * var(--u));
+    text-transform:uppercase;text-align:center;line-height:1}
 
-  .steps{display:flex;gap:calc(20 * var(--u));width:calc(880 * var(--u))}
-  .step{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:calc(20 * var(--u));
-    padding:calc(26 * var(--u)) calc(16 * var(--u));text-align:center}
-  .step .n{font-family:'Anton';font-size:calc(42 * var(--u));color:var(--lime);line-height:1}
-  .step .t{font-size:calc(22 * var(--u));color:var(--txt);margin-top:calc(10 * var(--u));letter-spacing:.5px;line-height:1.25;text-transform:uppercase;opacity:.85}
+  .stephead{font-family:'Anton';font-size:calc(52 * var(--u));color:#fff;letter-spacing:1px;
+    text-transform:uppercase;text-align:center;line-height:1}
+
+  /* Numbered list (was three side-by-side cards): one line per step, set large
+     enough to be read at kiosk distance. */
+  .steps{display:flex;flex-direction:column;gap:calc(22 * var(--u));width:calc(760 * var(--u))}
+  .step{display:flex;align-items:baseline;gap:calc(24 * var(--u))}
+  .step .n{font-family:'Anton';font-size:calc(70 * var(--u));color:#fff;line-height:1;
+    min-width:calc(80 * var(--u));text-align:right}
+  .step .t{font-family:'Anton';font-size:calc(70 * var(--u));color:#fff;line-height:1;
+    letter-spacing:.5px;text-transform:uppercase}
+  .step .t em{font-style:normal;color:var(--lime)}
 
   .store{width:calc(880 * var(--u));border-radius:calc(20 * var(--u));padding:calc(26 * var(--u)) calc(28 * var(--u));text-align:center;
     background:linear-gradient(180deg,rgba(165,255,8,.10),rgba(165,255,8,.03));
@@ -124,7 +141,13 @@
     <div class="join">
       <div>
         <div class="jtitle">SCAN TO <em>JOIN</em></div>
-        <div class="jsmall">Sign up on your phone in under <em>60 seconds</em>.</div>
+        <div class="jbadge">Sign up on your phone</div>
+      </div>
+
+      <div class="token" id="tokenLine">
+        <span>Secure code</span>
+        <div class="dot" style="width:calc(12 * var(--u));height:calc(12 * var(--u))"></div>
+        <span id="tokenText">Scan to sign-up</span>
       </div>
 
       <div class="qrbox">
@@ -134,15 +157,12 @@
         <div class="scanline"></div>
       </div>
 
-      <div class="token" id="tokenLine">
-        <div class="dot" style="width:calc(12 * var(--u));height:calc(12 * var(--u))"></div>
-        <span id="tokenText">secure code · scan to sign up</span>
-      </div>
+      <div class="stephead">Follow the steps</div>
 
       <div class="steps">
-        <div class="step"><div class="n">1</div><div class="t">Scan code</div></div>
-        <div class="step"><div class="n">2</div><div class="t">Sign up free</div></div>
-        <div class="step"><div class="n">3</div><div class="t">Start playing</div></div>
+        <div class="step"><div class="n">1.</div><div class="t">Scan code</div></div>
+        <div class="step"><div class="n">2.</div><div class="t">Sign-up <em>Free</em></div></div>
+        <div class="step"><div class="n">3.</div><div class="t">Start playing</div></div>
       </div>
 
     </div>
@@ -191,7 +211,7 @@
       qrImg.src = blobUrl;
       qrImg.classList.remove('pending');   // live QR on screen — unblur
       loaded = true;
-      tokenTxt.textContent = 'secure code · scan to sign up';
+      tokenTxt.textContent = 'Scan to sign-up';
       return true;
     }
 
