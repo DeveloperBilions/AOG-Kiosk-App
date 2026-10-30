@@ -8,6 +8,17 @@
 (function (w) {
   w.AOG_API = 'https://aogclub.api.skynbliss.co/api';
 
+  // Testing: open any kiosk link once with ?env=qa (QA API) or ?env=local
+  // (a backend on this machine, port 5001) and this browser tab keeps using
+  // it until it is closed. Production links are unaffected.
+  try {
+    var envM = /[?&]env=(qa|local)(&|$)/.exec(location.search);
+    if (envM) sessionStorage.setItem('aog_env', envM[1]);
+    var env = sessionStorage.getItem('aog_env');
+    if (env === 'qa') w.AOG_API = 'https://aog.qa.api.skynbliss.co/api';
+    if (env === 'local') w.AOG_API = 'http://localhost:5001/api';
+  } catch (e) { /* storage unavailable */ }
+
   // localStorage keys — deliberately DIFFERENT from the classic flow's
   // aog_token/aog_refresh/aog_user so the two sessions never collide.
   w.AUTO_KEYS = {

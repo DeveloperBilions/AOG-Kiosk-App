@@ -65,6 +65,21 @@ https://developerbilions.github.io/AOG-Kiosk-App/auto/#c=BASE64   (preferred*)
 - **The link IS the password** (base64 is encoding, not encryption). Share it
   like a credential; rotate the account password to revoke a leaked link.
 
+## Login & Play (QR login for existing players)
+
+`web/login-play.js` is shared by every kiosk page (classic, `auto/*`, `autodist/*`). Each page loads it
+with the localStorage key of its own store session (`data-token-key`). It adds a **Login & Play** button
+under the sign-up steps and a full-screen QR login screen; the sign-up QR is untouched.
+
+- **Hidden until enabled.** The button only appears when the API feature flag `kiosk_login_play_enabled`
+  is on for the kiosk's store account (allowlist store `tbl_registration.id` values to enable single stores).
+  So these pages can ship to `main` before the backend is live in production.
+- **Flow:** QR (single-use, 2 min) → player approves on their phone → the kiosk opens the AOG site in the
+  same window → the site hard-logs-out after 1 minute of inactivity and returns here.
+- **Safety net:** every load of a kiosk page ends the last Login & Play session it started (`aog_lp_open`).
+- **Testing:** open any kiosk link once with `?env=qa` (QA API) or `?env=local` (backend on `localhost:5001`) and that browser tab
+  keeps using it until it is closed.
+
 ## Updating the kiosk content (the everyday workflow)
 
 1. Edit `web/index.html` and/or replace `web/QR.png`.
