@@ -8,6 +8,13 @@
 (function (w) {
   w.AOG_API = 'https://aogclub.api.skynbliss.co/api';
 
+  // QA kiosk: pages served from the QA kiosk address use the QA API. Chosen
+  // by hostname so this file is identical on every branch, and merging to main
+  // can never point the TV fleet at QA.
+  if (location.hostname === 'aog.qa.kiosk.skynbliss.co') {
+    w.AOG_API = 'https://aog.qa.api.skynbliss.co/api';
+  }
+
   // Testing: open any kiosk link once with ?env=qa (QA API) or ?env=local
   // (a backend on this machine, port 5001) and this browser tab keeps using
   // it until it is closed. Production links are unaffected.
